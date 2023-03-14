@@ -11,7 +11,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Coin Explorer",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::App::new(cc))),
+        Box::new(|cc| Box::new(coin_tracker::App::new(cc))),
     )
 }
 
