@@ -1,5 +1,6 @@
-use std::{net::TcpStream, process::exit};
+use std::{net::TcpStream};
 
+use egui::{Rect, Pos2, Rounding, Color32, Stroke};
 use electrum_client::{
     bitcoin::{hashes::hex::FromHex, Script, Txid},
     raw_client::RawClient,
@@ -13,7 +14,8 @@ pub fn get() -> Result<(), Error> {
         "89dea9f103d777e48c872bc9062373da7782e705386606281102d6278d01495f",
     )?)?;
     println!("{:#?}", r);
-    exit(0);
+    // exit(0);
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -38,6 +40,71 @@ pub struct Transaction {
     outputs: Vec<Output>,
 }
 
+impl Transaction {
+    pub fn amount(&self) -> u64 {
+        self.inputs.iter().map(|input| input.value).sum()
+    }
+
+    pub fn fees(&self) -> u64 {
+        let sent: u64 = self.outputs.iter().map(|output| output.value).sum();
+        let fees = self.amount() as i64 - sent as i64;
+        assert!(fees >= 0, "fees negative");
+        fees as u64
+    }
+
+    fn scale(value: u64) -> f32 {
+        f32::powf(value as f32, 1.0 / 2.0).round() / 10.0
+    }
+
+    pub fn draw(&self, painter: &egui::Painter) {
+        let height: f32 = Self::scale(self.amount());
+        let input_height: f32 = self.inputs.iter().map(|input| Self::scale(input.value)).sum();
+        let output_height = self.outputs.iter().map(|output| Self::scale(output.value)).sum::<f32>() + Self::scale(self.fees());
+
+        let start = 40.0_f32;
+
+        let mut curr = start;
+
+        for input in &self.inputs {
+            let h = Self::scale(input.value) * height / input_height;
+            painter.rect_stroke(
+                Rect::from_min_max(
+                    Pos2::new(40.0, curr),
+                    Pos2::new(50.0, curr + h)
+                ),
+                Rounding::none(),
+                Stroke::new(1.0, Color32::BLACK)
+            );
+            curr += h;
+        }
+
+        curr = start;
+
+        for output in &self.outputs {
+            let h = Self::scale(output.value) * height / output_height;
+            painter.rect_stroke(
+                Rect::from_min_max(
+                    Pos2::new(60.0, curr),
+                    Pos2::new(70.0, curr + h)
+                ),
+                Rounding::none(),
+                Stroke::new(1.0, Color32::BLACK)
+            );
+            curr += h;
+        }
+
+        let h = Self::scale(self.fees()) * height / output_height;
+        painter.rect_stroke(
+            Rect::from_min_max(
+                Pos2::new(60.0, curr),
+                Pos2::new(70.0, curr + h)
+            ),
+            Rounding::none(),
+            Stroke::new(1.0, Color32::BLUE)
+        );
+    }
+}
+
 pub struct Bitcoin {
     client: RawClient<StreamOwned<ClientConnection, TcpStream>>,
 }
@@ -49,7 +116,7 @@ impl Bitcoin {
         })
     }
 
-    pub fn get_transaction(self, txid: &Txid) -> Result<Transaction, Error> {
+    pub fn get_transaction(&self, txid: &Txid) -> Result<Transaction, Error> {
         let tx = self.client.transaction_get(txid)?;
 
         let inputs: Vec<Input> = {

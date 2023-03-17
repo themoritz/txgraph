@@ -2,4 +2,5 @@
 
 mod app;
 mod bitcoin;
+mod bezier;
 pub use app::App;
