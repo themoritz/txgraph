@@ -4,7 +4,7 @@ pub struct Cubic {
     p0: Pos2,
     p1: Pos2,
     p2: Pos2,
-    p3: Pos2
+    p3: Pos2,
 }
 
 impl Cubic {
@@ -14,7 +14,7 @@ impl Cubic {
             p0: from,
             p1: from + mid,
             p2: to - mid,
-            p3: to
+            p3: to,
         }
     }
 

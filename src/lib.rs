@@ -1,6 +1,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
-mod bitcoin;
 mod bezier;
+mod bitcoin;
+mod graph;
+mod transform;
 pub use app::App;
