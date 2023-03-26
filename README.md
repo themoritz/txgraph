@@ -1,5 +1,9 @@
 # coin tracker
 
+Follow the coins [Sankey](https://en.wikipedia.org/wiki/Sankey_diagram) style.
+
+![](./docs/screenshot.png)
+
 ### Testing locally
 
 Make sure you are using the latest version of stable rust by running `rustup update`.

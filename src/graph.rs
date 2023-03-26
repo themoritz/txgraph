@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
-use egui::{Color32, Pos2, Rect, Rounding, Sense, Vec2};
+use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
 use electrum_client::bitcoin::Txid;
 
-use crate::{bezier::Edge, bitcoin::Transaction, transform::Transform};
+use crate::{
+    bezier::Edge,
+    bitcoin::{Sats, Transaction},
+    transform::Transform,
+};
 
 pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
     let mut layers: Vec<Vec<Txid>> = Vec::new();
@@ -108,30 +112,43 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                 .map(|i| {
                     let h = scale(i.value) * height / input_height;
                     bot += h;
-                    EdgePosition {
+                    DrawableInput {
                         top: bot - h,
                         bot,
-                        txid: Some(i.txid),
+                        value: i.value,
+                        funding_txid: i.txid,
                     }
                 })
                 .collect();
 
             bot = 0.0;
 
-            // TODO: Fees?
-            let outputs = tx
+            let mut outputs: Vec<DrawableOutput> = tx
                 .outputs
                 .iter()
                 .map(|o| {
                     let h = scale(o.value) * height / output_height;
                     bot += h;
-                    EdgePosition {
+                    DrawableOutput {
                         top: bot - h,
                         bot,
-                        txid: o.spend_txid,
+                        value: o.value,
+                        output_type: match o.spend_txid {
+                            None => OutputType::Utxo,
+                            Some(txid) => OutputType::Spent {
+                                spending_txid: txid,
+                            },
+                        },
                     }
                 })
                 .collect();
+
+            outputs.push(DrawableOutput {
+                top: bot,
+                bot: bot + scale(tx.fees()) * height / output_height,
+                value: tx.fees(),
+                output_type: OutputType::Fees,
+            });
 
             nodes.insert(
                 *txid,
@@ -160,8 +177,8 @@ pub struct DrawableGraph {
 pub struct DrawableNode {
     pos: Pos2,
     height: f32,
-    inputs: Vec<EdgePosition>,
-    outputs: Vec<EdgePosition>,
+    inputs: Vec<DrawableInput>,
+    outputs: Vec<DrawableOutput>,
 }
 
 pub struct DrawableEdge {
@@ -171,10 +188,24 @@ pub struct DrawableEdge {
     target_pos: usize,
 }
 
-pub struct EdgePosition {
+pub struct DrawableInput {
     top: f32,
     bot: f32,
-    txid: Option<Txid>,
+    value: u64,
+    funding_txid: Txid,
+}
+
+pub struct DrawableOutput {
+    top: f32,
+    bot: f32,
+    value: u64,
+    output_type: OutputType,
+}
+
+pub enum OutputType {
+    Utxo,
+    Spent { spending_txid: Txid },
+    Fees,
 }
 
 impl DrawableGraph {
@@ -188,7 +219,12 @@ impl DrawableGraph {
             let top_left = node.pos + Vec2::new(-5.0, -node.height / 2.0);
             let rect = transform
                 .rect_to_screen(Rect::from_min_size(top_left, Vec2::new(10.0, node.height)));
-            painter.rect_filled(rect, Rounding::none(), Color32::LIGHT_RED);
+            painter.rect(
+                rect,
+                Rounding::none(),
+                Color32::LIGHT_RED,
+                Stroke::new(1.0, Color32::BLACK),
+            );
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
@@ -197,12 +233,17 @@ impl DrawableGraph {
                     Pos2::new(top_left.x, top_left.y + input.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
-                let response = ui.interact(screen_rect, id.with(i), Sense::click());
-                if let Some(txid) = input.txid {
-                    if response.clicked() {
-                        click_tx(txid);
-                    }
+                let response = ui
+                    .interact(screen_rect, id.with(i), Sense::click())
+                    .on_hover_ui(|ui| {
+                        ui.label(format!("{} sats", Sats(input.value)));
+                        ui.label(format!("Previous Tx: {}", input.funding_txid));
+                    });
+
+                if response.clicked() {
+                    click_tx(input.funding_txid);
                 }
+
                 painter.rect_stroke(
                     screen_rect,
                     Rounding::none(),
@@ -219,15 +260,33 @@ impl DrawableGraph {
                     Pos2::new(top_left.x + 20.0, top_left.y + output.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
-                let response = ui.interact(screen_rect, id.with(o), Sense::click());
-                if let Some(txid) = output.txid {
+                let response = ui
+                    .interact(screen_rect, id.with(o), Sense::click())
+                    .on_hover_ui(|ui| {
+                        ui.label(format!("{} sats", Sats(output.value)));
+                        ui.label(match output.output_type {
+                            OutputType::Utxo => "UTXO!".to_string(),
+                            OutputType::Spent { spending_txid } => {
+                                format!("Spending Tx: {}", spending_txid)
+                            }
+                            OutputType::Fees => "Fees!".to_string(),
+                        });
+                    });
+
+                if let OutputType::Spent { spending_txid } = output.output_type {
                     if response.clicked() {
-                        click_tx(txid);
+                        click_tx(spending_txid);
                     }
                 }
-                painter.rect_stroke(
+
+                painter.rect(
                     screen_rect,
                     Rounding::none(),
+                    match output.output_type {
+                        OutputType::Utxo => Color32::GRAY,
+                        OutputType::Spent { spending_txid: _ } => Color32::TRANSPARENT,
+                        OutputType::Fees => Color32::BLACK,
+                    },
                     ui.style().interact(&response).fg_stroke,
                 );
 

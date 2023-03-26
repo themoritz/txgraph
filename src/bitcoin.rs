@@ -1,4 +1,4 @@
-use std::net::TcpStream;
+use std::{fmt::Display, net::TcpStream};
 
 use electrum_client::{
     bitcoin::{Script, Txid},
@@ -114,5 +114,20 @@ impl Bitcoin {
             inputs,
             outputs,
         })
+    }
+}
+
+pub struct Sats(pub u64);
+
+impl Display for Sats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let btc = self.0 / 100_000_000;
+        let sats = self.0 - btc * 100_000_000;
+        if btc > 0 {
+            let sats = format!("{:06}", sats);
+            write!(f, "{}_{}", btc, sats)
+        } else {
+            write!(f, "{}", sats)
+        }
     }
 }
