@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{CursorIcon, Frame, Pos2, Sense, TextEdit};
+use egui::{CursorIcon, Frame, Sense, TextEdit};
 use electrum_client::bitcoin::{hashes::hex::FromHex, Txid};
 
 use crate::{
@@ -13,20 +13,12 @@ use crate::{
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
-    from: Pos2,
-    to: Pos2,
-    height: f32,
     tx: String,
 }
 
 impl Default for AppStore {
     fn default() -> Self {
-        Self {
-            from: Pos2::new(50.0, 50.0),
-            to: Pos2::new(250.0, 150.0),
-            height: 50.0,
-            tx: String::new(),
-        }
+        Self { tx: String::new() }
     }
 }
 
@@ -106,14 +98,7 @@ impl eframe::App for App {
 
         egui::Window::new("Controls").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Height");
-                ui.add(egui::widgets::Slider::new(
-                    &mut self.store.height,
-                    1.0..=100.0,
-                ));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Tx");
+                ui.label("Load Tx");
                 ui.add(TextEdit::singleline(&mut self.store.tx));
                 if ui.button("Go").clicked() {
                     let txid = Txid::from_hex(&self.store.tx).unwrap();
