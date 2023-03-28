@@ -192,7 +192,7 @@ pub struct DrawableInput {
     top: f32,
     bot: f32,
     value: u64,
-    funding_txid: Txid,
+    funding_txid: Txid, // TODO: coinbase tx?
 }
 
 pub struct DrawableOutput {

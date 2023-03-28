@@ -119,15 +119,117 @@ impl Bitcoin {
 
 pub struct Sats(pub u64);
 
+pub struct AmountComponents {
+    pub sats: u64,
+    pub ksats: Option<u64>,
+    pub msats: Option<u64>,
+    /// In write order.
+    pub btc: Vec<u64>,
+}
+
+impl Sats {
+    pub fn components(&self) -> AmountComponents {
+        let btc = self.0 / 1_00_000_000;
+        let mut rem = self.0 % 1_00_000_000;
+        let msats0 = rem / 1_000_000;
+        rem = rem % 1_000_000;
+        let msats = if msats0 > 0 { Some(msats0) } else { None };
+        let ksats0 = rem / 1_000;
+        rem = rem % 1_000;
+        let ksats = if ksats0 > 0 { Some(ksats0) } else { None };
+        let sats = rem;
+
+        let mut vec = Vec::new();
+        let mut btc_to_go = btc;
+
+        while btc_to_go > 0 {
+            rem = btc_to_go % 1_000;
+            btc_to_go = btc_to_go / 1_000;
+            vec.push(rem);
+        }
+
+        vec.reverse();
+
+        AmountComponents {
+            sats,
+            ksats,
+            msats,
+            btc: vec,
+        }
+    }
+}
+
 impl Display for Sats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let btc = self.0 / 100_000_000;
-        let sats = self.0 - btc * 100_000_000;
-        if btc > 0 {
-            let sats = format!("{:06}", sats);
-            write!(f, "{}_{}", btc, sats)
+        let AmountComponents {
+            sats,
+            ksats,
+            msats,
+            btc,
+        } = self.components();
+
+        let mut started = false;
+
+        if btc.len() > 0 {
+            write!(f, "{}", btc[0])?;
+            started = true;
+
+            for amount in btc.iter().skip(1) {
+                if started {
+                    write!(f, ",{:03}", amount)?;
+                } else {
+                    write!(f, ",{}", amount)?;
+                }
+            }
+
+            write!(f, "'")?;
+        }
+
+        if started {
+            write!(f, "{:02},", msats.unwrap_or(0))?;
         } else {
-            write!(f, "{}", sats)
+            if let Some(m) = msats {
+                write!(f, "{},", m)?;
+                started = true;
+            }
+        }
+
+        if started {
+            write!(f, "{:03},", ksats.unwrap_or(0))?;
+        } else {
+            if let Some(k) = ksats {
+                write!(f, "{},", k)?;
+                started = true
+            }
+        }
+
+        if started {
+            write!(f, "{:03}", sats)?;
+        } else {
+            write!(f, "{}", sats)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bitcoin::Sats;
+
+    #[test]
+    fn it_works() {
+        let cases = vec![
+            (42, "42"),
+            (5_001, "5,001"),
+            (19_010_020, "19,010,020"),
+            (1_00_000_000, "1'00,000,000"),
+            (4_001_01_123_456, "4,001'01,123,456"),
+            (1_000_000_00_000_000, "1,000,000'00,000,000"),
+        ];
+
+        for case in cases {
+            assert_eq!(format!("{}", Sats(case.0)), case.1);
         }
     }
 }
