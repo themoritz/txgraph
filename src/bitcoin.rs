@@ -1,7 +1,7 @@
 use std::{fmt::Display, net::TcpStream};
 
 use electrum_client::{
-    bitcoin::{Script, Txid},
+    bitcoin::{Address, Network, Script, Txid},
     raw_client::RawClient,
     ElectrumApi, Error,
 };
@@ -211,6 +211,28 @@ impl Display for Sats {
 
         Ok(())
     }
+}
+
+pub fn script_to_address(script: &Script) -> String {
+    let addr = Address::from_script(script, Network::Bitcoin).unwrap();
+
+    let kind = if script.is_p2pk() {
+        "P2PK"
+    } else if script.is_p2pkh() {
+        "P2PKH"
+    } else if script.is_p2sh() {
+        "P2SH"
+    } else if script.is_v0_p2wpkh() {
+        "P2WPKH"
+    } else if script.is_v0_p2wsh() {
+        "P2WSH"
+    } else if script.is_v1_p2tr() {
+        "P2TR"
+    } else {
+        "?"
+    };
+
+    format!("{} ({})", addr, kind)
 }
 
 #[cfg(test)]

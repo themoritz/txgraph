@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
-use electrum_client::bitcoin::Txid;
+use electrum_client::bitcoin::{Script, Txid};
 
 use crate::{
     bezier::Edge,
-    bitcoin::{Sats, Transaction},
+    bitcoin::{script_to_address, Sats, Transaction},
     transform::Transform,
 };
 
@@ -116,6 +116,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                         top: bot - h,
                         bot,
                         value: i.value,
+                        script: i.script.clone(),
                         funding_txid: i.txid,
                     }
                 })
@@ -134,9 +135,12 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                         bot,
                         value: o.value,
                         output_type: match o.spend_txid {
-                            None => OutputType::Utxo,
+                            None => OutputType::Utxo {
+                                script: o.script.clone(),
+                            },
                             Some(txid) => OutputType::Spent {
                                 spending_txid: txid,
+                                script: o.script.clone(),
                             },
                         },
                     }
@@ -192,6 +196,7 @@ pub struct DrawableInput {
     top: f32,
     bot: f32,
     value: u64,
+    script: Script,
     funding_txid: Txid, // TODO: coinbase tx?
 }
 
@@ -203,8 +208,8 @@ pub struct DrawableOutput {
 }
 
 pub enum OutputType {
-    Utxo,
-    Spent { spending_txid: Txid },
+    Utxo { script: Script },
+    Spent { spending_txid: Txid, script: Script },
     Fees,
 }
 
@@ -237,6 +242,7 @@ impl DrawableGraph {
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
                         ui.label(format!("{} sats", Sats(input.value)));
+                        ui.label(format!("Address: {}", script_to_address(&input.script)));
                         ui.label(format!("Previous Tx: {}", input.funding_txid));
                     });
 
@@ -264,18 +270,31 @@ impl DrawableGraph {
                     .interact(screen_rect, id.with(o), Sense::click())
                     .on_hover_ui(|ui| {
                         ui.label(format!("{} sats", Sats(output.value)));
-                        ui.label(match output.output_type {
-                            OutputType::Utxo => "UTXO!".to_string(),
-                            OutputType::Spent { spending_txid } => {
-                                format!("Spending Tx: {}", spending_txid)
+                        match &output.output_type {
+                            OutputType::Utxo { script } => {
+                                ui.label(format!("Address: {}", script_to_address(script)));
+                                ui.label("UTXO!".to_string());
                             }
-                            OutputType::Fees => "Fees!".to_string(),
-                        });
+                            OutputType::Spent {
+                                spending_txid,
+                                script,
+                            } => {
+                                ui.label(format!("Address: {}", script_to_address(script)));
+                                ui.label(format!("Spending Tx: {}", spending_txid));
+                            }
+                            OutputType::Fees => {
+                                ui.label("Fees!".to_string());
+                            }
+                        }
                     });
 
-                if let OutputType::Spent { spending_txid } = output.output_type {
+                if let OutputType::Spent {
+                    spending_txid,
+                    script: _,
+                } = &output.output_type
+                {
                     if response.clicked() {
-                        click_tx(spending_txid);
+                        click_tx(*spending_txid);
                     }
                 }
 
@@ -283,8 +302,11 @@ impl DrawableGraph {
                     screen_rect,
                     Rounding::none(),
                     match output.output_type {
-                        OutputType::Utxo => Color32::GRAY,
-                        OutputType::Spent { spending_txid: _ } => Color32::TRANSPARENT,
+                        OutputType::Utxo { script: _ } => Color32::GRAY,
+                        OutputType::Spent {
+                            spending_txid: _,
+                            script: _,
+                        } => Color32::TRANSPARENT,
                         OutputType::Fees => Color32::BLACK,
                     },
                     ui.style().interact(&response).fg_stroke,
