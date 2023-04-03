@@ -73,7 +73,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
     }
 
     fn scale(value: u64) -> f32 {
-        f32::powf(value as f32, 1.0 / 2.0).round() / 10.0
+        f32::powf(value as f32, 1.0 / 3.0).round() / 10.0
     }
 
     let mut nodes = HashMap::new();
