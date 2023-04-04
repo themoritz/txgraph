@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
-use electrum_client::bitcoin::{Script, Txid};
 
 use crate::{
     bezier::Edge,
-    bitcoin::{script_to_address, Sats, Transaction},
+    bitcoin::{Sats, Transaction, Txid},
     transform::Transform,
 };
 
@@ -24,7 +23,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                             .outputs
                             .iter()
                             .enumerate()
-                            .find(|(_, output)| output.spend_txid == Some(*txid))
+                            .find(|(_, output)| output.spending_txid == Some(*txid))
                             .unwrap()
                             .0;
                         DrawableEdge {
@@ -60,7 +59,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
 
         for txid in current_layer {
             for o in &txs.get(&txid).unwrap().outputs {
-                if let Some(target) = o.spend_txid {
+                if let Some(target) = o.spending_txid {
                     no_inputs.entry(target).and_modify(|n| {
                         *n -= 1;
                         if *n == 0 {
@@ -116,7 +115,8 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                         top: bot - h,
                         bot,
                         value: i.value,
-                        script: i.script.clone(),
+                        address: i.address.clone(),
+                        address_type: i.address_type.clone(),
                         funding_txid: i.txid,
                     }
                 })
@@ -134,13 +134,15 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                         top: bot - h,
                         bot,
                         value: o.value,
-                        output_type: match o.spend_txid {
+                        output_type: match o.spending_txid {
                             None => OutputType::Utxo {
-                                script: o.script.clone(),
+                                address: o.address.clone(),
+                                address_type: o.address_type.clone(),
                             },
                             Some(txid) => OutputType::Spent {
                                 spending_txid: txid,
-                                script: o.script.clone(),
+                                address: o.address.clone(),
+                                address_type: o.address_type.clone(),
                             },
                         },
                     }
@@ -196,7 +198,8 @@ pub struct DrawableInput {
     top: f32,
     bot: f32,
     value: u64,
-    script: Script,
+    address: String,
+    address_type: String,
     funding_txid: Txid, // TODO: coinbase tx?
 }
 
@@ -208,8 +211,15 @@ pub struct DrawableOutput {
 }
 
 pub enum OutputType {
-    Utxo { script: Script },
-    Spent { spending_txid: Txid, script: Script },
+    Utxo {
+        address: String,
+        address_type: String,
+    },
+    Spent {
+        spending_txid: Txid,
+        address: String,
+        address_type: String,
+    },
     Fees,
 }
 
@@ -242,7 +252,7 @@ impl DrawableGraph {
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
                         ui.label(format!("{} sats", Sats(input.value)));
-                        ui.label(format!("Address: {}", script_to_address(&input.script)));
+                        ui.label(format!("Address: {}", input.address));
                         ui.label(format!("Previous Tx: {}", input.funding_txid));
                     });
 
@@ -271,15 +281,19 @@ impl DrawableGraph {
                     .on_hover_ui(|ui| {
                         ui.label(format!("{} sats", Sats(output.value)));
                         match &output.output_type {
-                            OutputType::Utxo { script } => {
-                                ui.label(format!("Address: {}", script_to_address(script)));
+                            OutputType::Utxo {
+                                address,
+                                address_type: _,
+                            } => {
+                                ui.label(format!("Address: {}", address));
                                 ui.label("UTXO!".to_string());
                             }
                             OutputType::Spent {
                                 spending_txid,
-                                script,
+                                address,
+                                address_type: _,
                             } => {
-                                ui.label(format!("Address: {}", script_to_address(script)));
+                                ui.label(format!("Address: {}", address));
                                 ui.label(format!("Spending Tx: {}", spending_txid));
                             }
                             OutputType::Fees => {
@@ -290,7 +304,8 @@ impl DrawableGraph {
 
                 if let OutputType::Spent {
                     spending_txid,
-                    script: _,
+                    address: _,
+                    address_type: _,
                 } = &output.output_type
                 {
                     if response.clicked() {
@@ -302,10 +317,14 @@ impl DrawableGraph {
                     screen_rect,
                     Rounding::none(),
                     match output.output_type {
-                        OutputType::Utxo { script: _ } => Color32::GRAY,
+                        OutputType::Utxo {
+                            address: _,
+                            address_type: _,
+                        } => Color32::GRAY,
                         OutputType::Spent {
                             spending_txid: _,
-                            script: _,
+                            address: _,
+                            address_type: _,
                         } => Color32::TRANSPARENT,
                         OutputType::Fees => Color32::BLACK,
                     },

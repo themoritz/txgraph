@@ -1,32 +1,98 @@
-use std::{fmt::Display, net::TcpStream};
+use std::fmt::{Debug, Display};
 
-use electrum_client::{
-    bitcoin::{Address, Network, Script, Txid},
-    raw_client::RawClient,
-    ElectrumApi, Error,
-};
-use rustls::{ClientConnection, StreamOwned};
+use hex::{FromHex, ToHex};
+use hyper::{body::to_bytes, client::HttpConnector, Body, Client};
+use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
+pub struct Txid([u8; 32]);
+
+impl Txid {
+    pub fn new(string: &str) -> Self {
+        Self(<[u8; 32]>::from_hex(string).unwrap())
+    }
+
+    pub fn to_hex_string(&self) -> String {
+        self.0.encode_hex()
+    }
+}
+
+impl Display for Txid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_hex_string())
+    }
+}
+
+impl Debug for Txid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Txid {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let string = String::deserialize(deserializer)?;
+        Ok(Self::new(&string))
+    }
+}
+
+impl Serialize for Txid {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_hex_string())
+    }
+}
+
+pub trait BitcoinData {
+    fn get_transaction(&self, txid: Txid) -> Transaction;
+}
+
+pub struct HttpClient {
+    client: hyper::Client<HttpConnector, Body>,
+}
+
+impl HttpClient {
+    pub fn new() -> Self {
+        HttpClient {
+            client: Client::new(),
+        }
+    }
+}
+
+impl BitcoinData for HttpClient {
+    fn get_transaction(&self, txid: Txid) -> Transaction {
+        let uri = format!("http://127.0.0.1:1337/{}", txid).parse().unwrap();
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut resp = self.client.get(uri).await.unwrap();
+            serde_json::from_slice(&to_bytes(resp.body_mut()).await.unwrap()).unwrap()
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Transaction {
+    pub timestamp: u32,
+    pub txid: Txid,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Input {
     pub txid: Txid,
     pub vout: u32,
     pub value: u64,
-    pub script: Script,
+    pub address: String,
+    pub address_type: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Output {
+    pub spending_txid: Option<Txid>,
     pub value: u64,
-    pub spend_txid: Option<Txid>,
-    pub script: Script,
-}
-
-#[derive(Debug)]
-pub struct Transaction {
-    pub txid: Txid,
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
+    pub address: String,
+    pub address_type: String,
 }
 
 impl Transaction {
@@ -39,81 +105,6 @@ impl Transaction {
         let fees = self.amount() as i64 - sent as i64;
         assert!(fees >= 0, "fees negative");
         fees as u64
-    }
-}
-
-pub struct Bitcoin {
-    client: RawClient<StreamOwned<ClientConnection, TcpStream>>,
-}
-
-impl Bitcoin {
-    pub fn new(addr: &str) -> Result<Self, Error> {
-        Ok(Self {
-            client: RawClient::new_ssl(addr, false, None)?,
-        })
-    }
-
-    pub fn get_transaction(&self, txid: &Txid) -> Result<Transaction, Error> {
-        let tx = self.client.transaction_get(txid)?;
-
-        let inputs: Vec<Input> = {
-            let previous_txs = self
-                .client
-                .batch_transaction_get(tx.input.iter().map(|i| &i.previous_output.txid))?;
-            tx.input
-                .iter()
-                .zip(previous_txs)
-                .map(|(input, tx)| {
-                    let vout = input.previous_output.vout;
-                    Input {
-                        txid: tx.txid(),
-                        vout,
-                        value: tx.output[vout as usize].value,
-                        script: tx.output[vout as usize].script_pubkey.clone(),
-                    }
-                })
-                .collect()
-        };
-
-        let outputs = {
-            let script_histories = self
-                .client
-                .batch_script_get_history(tx.output.iter().map(|o| &o.script_pubkey))?;
-            tx.output
-                .iter()
-                .enumerate()
-                .zip(script_histories)
-                .map(|((i, output), history)| {
-                    let history_txs = self
-                        .client
-                        .batch_transaction_get(history.iter().map(|h| &h.tx_hash))?;
-                    let spend_txid = history_txs
-                        .iter()
-                        .find(|history_tx| {
-                            history_tx
-                                .input
-                                .iter()
-                                .find(|history_input| {
-                                    history_input.previous_output.txid == *txid
-                                        && history_input.previous_output.vout as usize == i
-                                })
-                                .is_some()
-                        })
-                        .map(|t| t.txid());
-                    Ok(Output {
-                        value: output.value,
-                        spend_txid,
-                        script: output.script_pubkey.clone(),
-                    })
-                })
-                .collect::<Result<Vec<Output>, Error>>()?
-        };
-
-        Ok(Transaction {
-            txid: *txid,
-            inputs,
-            outputs,
-        })
     }
 }
 
@@ -213,34 +204,12 @@ impl Display for Sats {
     }
 }
 
-pub fn script_to_address(script: &Script) -> String {
-    let addr = Address::from_script(script, Network::Bitcoin).unwrap();
-
-    let kind = if script.is_p2pk() {
-        "P2PK"
-    } else if script.is_p2pkh() {
-        "P2PKH"
-    } else if script.is_p2sh() {
-        "P2SH"
-    } else if script.is_v0_p2wpkh() {
-        "P2WPKH"
-    } else if script.is_v0_p2wsh() {
-        "P2WSH"
-    } else if script.is_v1_p2tr() {
-        "P2TR"
-    } else {
-        "?"
-    };
-
-    format!("{} ({})", addr, kind)
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::bitcoin::Sats;
+    use crate::bitcoin::{Sats, Txid};
 
     #[test]
-    fn it_works() {
+    fn sats() {
         let cases = vec![
             (42, "42"),
             (5_001, "5,001"),
@@ -253,5 +222,14 @@ mod tests {
         for case in cases {
             assert_eq!(format!("{}", Sats(case.0)), case.1);
         }
+    }
+
+    #[test]
+    fn txid() {
+        assert_eq!(
+            Txid::new("afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382")
+                .to_hex_string(),
+            "afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382"
+        );
     }
 }

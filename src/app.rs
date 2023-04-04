@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use egui::{CursorIcon, Frame, Sense, TextEdit};
-use electrum_client::bitcoin::{hashes::hex::FromHex, Txid};
 
 use crate::{
-    bitcoin::{Bitcoin, Transaction},
+    bitcoin::{BitcoinData, HttpClient, Transaction, Txid},
     graph::to_drawable,
     transform::Transform,
 };
@@ -24,7 +23,7 @@ impl Default for AppStore {
 
 pub struct App {
     store: AppStore,
-    bitcoin: Bitcoin,
+    bitcoin: HttpClient,
     transactions: HashMap<Txid, Transaction>,
     transform: Transform,
 }
@@ -47,7 +46,7 @@ impl App {
 
         App {
             store,
-            bitcoin: Bitcoin::new("raspibolt.local:50002").unwrap(),
+            bitcoin: HttpClient::new(),
             transactions: HashMap::default(),
             transform: Transform::default(),
         }
@@ -87,7 +86,7 @@ impl eframe::App for App {
                 if self.transactions.contains_key(&txid) {
                     self.transactions.remove(&txid);
                 } else {
-                    let r = self.bitcoin.get_transaction(&txid).unwrap();
+                    let r = self.bitcoin.get_transaction(txid);
                     println!("{:#?}", r);
                     self.transactions.insert(txid, r);
                 }
@@ -101,8 +100,8 @@ impl eframe::App for App {
                 ui.label("Load Tx");
                 ui.add(TextEdit::singleline(&mut self.store.tx));
                 if ui.button("Go").clicked() {
-                    let txid = Txid::from_hex(&self.store.tx).unwrap();
-                    let r = self.bitcoin.get_transaction(&txid).unwrap();
+                    let txid = Txid::new(&self.store.tx);
+                    let r = self.bitcoin.get_transaction(txid);
                     println!("{:#?}", r);
                     self.transactions.insert(txid, r);
                 }
