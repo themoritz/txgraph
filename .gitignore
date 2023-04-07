@@ -1,2 +1,3 @@
-/target
-/dist
+/gui/target
+/server/target
+/server/txs.db

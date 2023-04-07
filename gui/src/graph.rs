@@ -161,6 +161,9 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                 DrawableNode {
                     pos: Pos2::new(x, y),
                     height,
+                    tx_value: tx.amount(),
+                    tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0).unwrap().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    block_height: tx.block_height,
                     inputs,
                     outputs,
                 },
@@ -183,6 +186,9 @@ pub struct DrawableGraph {
 pub struct DrawableNode {
     pos: Pos2,
     height: f32,
+    tx_value: u64,
+    tx_timestamp: String,
+    block_height: u32,
     inputs: Vec<DrawableInput>,
     outputs: Vec<DrawableOutput>,
 }
@@ -234,6 +240,13 @@ impl DrawableGraph {
             let top_left = node.pos + Vec2::new(-5.0, -node.height / 2.0);
             let rect = transform
                 .rect_to_screen(Rect::from_min_size(top_left, Vec2::new(10.0, node.height)));
+            let _response = ui
+                .interact(rect, ui.id().with(txid), Sense::hover())
+                .on_hover_ui(|ui| {
+                    ui.label(format!("Tx: {}", txid));
+                    ui.label(format!("Total amount: {}", Sats(node.tx_value)));
+                    ui.label(format!("Timestamp: {}, block: {}", node.tx_timestamp, node.block_height));
+                });
             painter.rect(
                 rect,
                 Rounding::none(),

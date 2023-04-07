@@ -72,8 +72,9 @@ impl BitcoinData for HttpClient {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
-    pub timestamp: u32,
+    pub timestamp: i64,
     pub txid: Txid,
+    pub block_height: u32,
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
 }

@@ -1,0 +1,19 @@
+[package]
+name = "coin_index"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitcoin-explorer = "1.2.18"
+rocksdb = { version = "0.17.0", features = [ "snappy" ] }
+serde = "*"
+serde_cbor = "0.11.2"
+serde_json = "1.0"
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+pico-args = "0.5.0"
+chrono = "0.4.24"
+bitcoin = "0.27.1"
+bitcoin_hashes = "0.10.0"
+simple_logger = "4.1.0"
+log = "0.4.17"
