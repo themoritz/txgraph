@@ -162,7 +162,10 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                     pos: Pos2::new(x, y),
                     height,
                     tx_value: tx.amount(),
-                    tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0).unwrap().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
+                        .unwrap()
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                     block_height: tx.block_height,
                     inputs,
                     outputs,
@@ -230,7 +233,7 @@ pub enum OutputType {
 }
 
 impl DrawableGraph {
-    pub fn draw(&self, ui: &egui::Ui, transform: &Transform, mut click_tx: impl FnMut(Txid)) {
+    pub fn draw(&self, ui: &egui::Ui, transform: &Transform, click_tx: impl Fn(Txid)) {
         let painter = ui.painter();
 
         let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
@@ -245,7 +248,10 @@ impl DrawableGraph {
                 .on_hover_ui(|ui| {
                     ui.label(format!("Tx: {}", txid));
                     ui.label(format!("Total amount: {}", Sats(node.tx_value)));
-                    ui.label(format!("Timestamp: {}, block: {}", node.tx_timestamp, node.block_height));
+                    ui.label(format!(
+                        "Timestamp: {}, block: {}",
+                        node.tx_timestamp, node.block_height
+                    ));
                 });
             painter.rect(
                 rect,
@@ -265,7 +271,10 @@ impl DrawableGraph {
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
                         ui.label(format!("{} sats", Sats(input.value)));
-                        ui.label(format!("Address: {}", input.address));
+                        ui.label(format!(
+                            "Address: {} ({})",
+                            input.address, input.address_type
+                        ));
                         ui.label(format!("Previous Tx: {}", input.funding_txid));
                     });
 
@@ -296,17 +305,17 @@ impl DrawableGraph {
                         match &output.output_type {
                             OutputType::Utxo {
                                 address,
-                                address_type: _,
+                                address_type,
                             } => {
-                                ui.label(format!("Address: {}", address));
+                                ui.label(format!("Address: {} ({})", address, address_type));
                                 ui.label("UTXO!".to_string());
                             }
                             OutputType::Spent {
                                 spending_txid,
                                 address,
-                                address_type: _,
+                                address_type,
                             } => {
-                                ui.label(format!("Address: {}", address));
+                                ui.label(format!("Address: {} ({})", address, address_type));
                                 ui.label(format!("Spending Tx: {}", spending_txid));
                             }
                             OutputType::Fees => {

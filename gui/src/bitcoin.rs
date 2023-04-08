@@ -1,16 +1,17 @@
 use std::fmt::{Debug, Display};
 
 use hex::{FromHex, ToHex};
-use hyper::{body::to_bytes, client::HttpConnector, Body, Client};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
 pub struct Txid([u8; 32]);
 
 impl Txid {
-    pub fn new(string: &str) -> Self {
-        Self(<[u8; 32]>::from_hex(string).unwrap())
+    pub fn new(string: &str) -> Result<Self, String> {
+        match <[u8; 32]>::from_hex(string) {
+            Ok(bytes) => Ok(Self(bytes)),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     pub fn to_hex_string(&self) -> String {
@@ -33,40 +34,13 @@ impl Debug for Txid {
 impl<'de> Deserialize<'de> for Txid {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let string = String::deserialize(deserializer)?;
-        Ok(Self::new(&string))
+        Ok(Self::new(&string).unwrap()) // TODO better error handling
     }
 }
 
 impl Serialize for Txid {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_hex_string())
-    }
-}
-
-pub trait BitcoinData {
-    fn get_transaction(&self, txid: Txid) -> Transaction;
-}
-
-pub struct HttpClient {
-    client: hyper::Client<HttpConnector, Body>,
-}
-
-impl HttpClient {
-    pub fn new() -> Self {
-        HttpClient {
-            client: Client::new(),
-        }
-    }
-}
-
-impl BitcoinData for HttpClient {
-    fn get_transaction(&self, txid: Txid) -> Transaction {
-        let uri = format!("http://127.0.0.1:1337/{}", txid).parse().unwrap();
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut resp = self.client.get(uri).await.unwrap();
-            serde_json::from_slice(&to_bytes(resp.body_mut()).await.unwrap()).unwrap()
-        })
     }
 }
 
@@ -229,6 +203,7 @@ mod tests {
     fn txid() {
         assert_eq!(
             Txid::new("afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382")
+                .unwrap()
                 .to_hex_string(),
             "afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382"
         );
