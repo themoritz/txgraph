@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use bitcoin_explorer::FBlock;
 use chrono::Utc;
-use coin_index::{error::Result, server, store::Store};
+use coin_index::{
+    error::{Error, Result},
+    server,
+    store::Store,
+};
+use futures::TryFutureExt;
 use hyper::{
     service::{make_service_fn, service_fn},
     Server,
@@ -20,12 +25,18 @@ async fn main() -> Result<()> {
     let restart = pargs.contains(["-r", "--restart"]);
 
     let store = Arc::new(Store::new(
-        "/Users/moritz/code/coin_index/txs.db",
+        "/Users/moritz/code/coin_tracker/server/txs.db",
         "/Users/moritz/Library/Application Support/Bitcoin",
     )?);
     let store2 = store.clone();
 
-    let sync_task = tokio::task::spawn_blocking(move || scan_blockchain(store, restart));
+    let scan = async {
+        match tokio::task::spawn_blocking(move || scan_blockchain(store, restart)).await {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(err)) => Err(err),
+            Err(err) => Err(Error::from(err)),
+        }
+    };
 
     let addr = "127.0.0.1:1337".parse().unwrap();
 
@@ -36,11 +47,10 @@ async fn main() -> Result<()> {
         }
     });
 
-    let server = Server::bind(&addr).serve(service);
+    let server = Server::bind(&addr).serve(service).map_err(Error::from);
     info!("Listening on http://{}", addr);
 
-    server.await?;
-    sync_task.await??;
+    tokio::try_join!(server, scan)?;
 
     Ok(())
 }
@@ -89,7 +99,7 @@ fn scan_blockchain(store: Arc<Store>, restart: bool) -> Result<()> {
         current_block += 1;
         n_blocks += 1;
 
-        if current_block % 1_000 == 0 {
+        if current_block % 100 == 0 {
             store.commit_block_height(current_block as u32)?;
         }
     }
