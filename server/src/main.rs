@@ -73,11 +73,10 @@ fn scan_blockchain(store: Arc<Store>, restart: bool) -> Result<()> {
     for block in store.bitcoin.iter_block::<FBlock>(start_block, block_count) {
         for tx in block.txdata {
             for i in tx.input {
-                let funding_txid = i.previous_output.txid;
-                let funding_vout = i.previous_output.vout;
-                store.set_spending_txid(funding_txid, funding_vout, tx.txid)?;
-                store.set_txid_block_height(tx.txid, current_block as u32)?;
+                store.set_spending_txid(i.previous_output.txid, i.previous_output.vout, tx.txid)?;
             }
+
+            store.set_txid_block_height(tx.txid, current_block as u32)?;
 
             n_txs += 1;
             if n_txs == 100_000 {
