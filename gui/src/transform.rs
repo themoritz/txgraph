@@ -33,6 +33,10 @@ impl Transform {
         Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
     }
 
+    pub fn scale_font(&self, size: f32) -> f32 {
+        size * self.z
+    }
+
     pub fn translate(&mut self, vec: Vec2) {
         self.t_x += vec.x;
         self.t_y += vec.y;

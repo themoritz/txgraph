@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+};
 
 use hex::{FromHex, ToHex};
 use serde::{Deserialize, Serialize};
@@ -177,6 +180,90 @@ impl Display for Sats {
 
         Ok(())
     }
+}
+
+pub fn dummy_transactions() -> HashMap<Txid, Transaction> {
+    let z = Txid::new("97ddfbbae6be97fd6cdf3e7ca13232a3affa2353e29badfab7f73011edd4ced9").unwrap();
+    let a = Txid::new("97ddfbbae6be97fd6cdf3e7ca13232a3afff2353e29badfab7f73011edd4ced9").unwrap();
+    let b = Txid::new("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b").unwrap();
+    let c = Txid::new("1a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b").unwrap();
+    HashMap::from([
+        (
+            a,
+            Transaction {
+                timestamp: 1,
+                block_height: 0,
+                txid: a,
+                inputs: vec![Input {
+                    value: 140_600_000,
+                    txid: z,
+                    vout: 0,
+                    address: "fslkfjeslk".to_string(),
+                    address_type: "p2pkh".to_string(),
+                }],
+                outputs: vec![
+                    Output {
+                        spending_txid: Some(b),
+                        value: 100_230_000,
+                        address: "fsklefj".to_string(),
+                        address_type: "p2pkh".to_string(),
+                    },
+                    Output {
+                        spending_txid: Some(c),
+                        value: 12_300_000,
+                        address: "fsklefj".to_string(),
+                        address_type: "p2pkh".to_string(),
+                    },
+                ],
+            },
+        ),
+        (
+            b,
+            Transaction {
+                timestamp: 2,
+                block_height: 0,
+                txid: b,
+                inputs: vec![Input {
+                    value: 100_230_000,
+                    txid: a,
+                    vout: 0,
+                    address: "fslkfjeslk".to_string(),
+                    address_type: "p2pkh".to_string(),
+                }],
+                outputs: vec![Output {
+                    spending_txid: Some(c),
+                    value: 12_300_000,
+                    address: "fsklefj".to_string(),
+                    address_type: "p2pkh".to_string(),
+                }],
+            },
+        ),
+        (
+            c,
+            Transaction {
+                timestamp: 2,
+                block_height: 0,
+                txid: c,
+                inputs: vec![
+                    Input {
+                        value: 12_300_000,
+                        txid: a,
+                        vout: 1,
+                        address: "fslkfjeslk".to_string(),
+                        address_type: "p2pkh".to_string(),
+                    },
+                    Input {
+                        value: 12_300_000,
+                        txid: b,
+                        vout: 0,
+                        address: "fslkfjeslk".to_string(),
+                        address_type: "p2pkh".to_string(),
+                    },
+                ],
+                outputs: vec![],
+            },
+        ),
+    ])
 }
 
 #[cfg(test)]

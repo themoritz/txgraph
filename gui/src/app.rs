@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use egui::{mutex::Mutex, CursorIcon, Frame, Sense, TextEdit};
 
 use crate::{
-    bitcoin::{Transaction, Txid},
-    graph::to_drawable,
+    bitcoin::{dummy_transactions, Transaction, Txid},
+    graph::{self, to_drawable, DrawableGraph},
     transform::Transform,
 };
 
@@ -23,6 +23,7 @@ impl Default for AppStore {
 
 pub struct AppState {
     transactions: HashMap<Txid, Transaction>,
+    graph: DrawableGraph,
     err: Option<String>,
     loading: bool,
 }
@@ -49,14 +50,20 @@ impl App {
             AppStore::default()
         };
 
+        let transactions = dummy_transactions();
+        let graph = to_drawable(&transactions);
+        let mut transform = Transform::default();
+        transform.translate(cc.integration_info.window_info.size / 4.0);
+
         App {
             store,
             state: Arc::new(Mutex::new(AppState {
-                transactions: HashMap::default(),
+                transactions,
+                graph,
                 err: None,
                 loading: false,
             })),
-            transform: Transform::default(),
+            transform,
         }
     }
 }
@@ -68,6 +75,7 @@ impl eframe::App for App {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
+        ctx.request_repaint();
 
         let state = self.state.clone();
 
@@ -90,7 +98,9 @@ impl eframe::App for App {
                                     match serde_json::from_str(&text) {
                                         Ok(tx) => {
                                             println!("{:#?}", tx);
-                                            state.lock().transactions.insert(txid, tx);
+                                            let mut st = state.lock();
+                                            st.transactions.insert(txid, tx);
+                                            st.graph = to_drawable(&st.transactions);
                                         }
                                         Err(err) => state.lock().err = Some(err.to_string()),
                                     }
@@ -130,9 +140,7 @@ impl eframe::App for App {
                 self.transform.translate(response.drag_delta());
             }
 
-            let graph = to_drawable(&state.lock().transactions);
-
-            graph.draw(ui, &self.transform, toggle_tx);
+            state.lock().graph.draw(ui, &self.transform, toggle_tx);
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {

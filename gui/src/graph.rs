@@ -77,8 +77,9 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
 
     let mut nodes = HashMap::new();
 
-    let mut x = 100.0;
+    let mut x = 0.0;
     const NODE_SEPARATION: f32 = 20.0;
+    const LAYER_SEPARATION: f32 = 100.0;
 
     for layer in layers {
         let mut layer_height = -NODE_SEPARATION;
@@ -160,6 +161,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                 *txid,
                 DrawableNode {
                     pos: Pos2::new(x, y),
+                    velocity: Vec2::new(0.0, 0.0),
                     height,
                     tx_value: tx.amount(),
                     tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
@@ -175,7 +177,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
             y += height / 2.0 + NODE_SEPARATION;
         }
 
-        x += 100.0;
+        x += LAYER_SEPARATION;
     }
 
     DrawableGraph { nodes, edges }
@@ -187,7 +189,9 @@ pub struct DrawableGraph {
 }
 
 pub struct DrawableNode {
+    /// Center of tx rect.
     pos: Pos2,
+    velocity: Vec2,
     height: f32,
     tx_value: u64,
     tx_timestamp: String,
@@ -233,16 +237,34 @@ pub enum OutputType {
 }
 
 impl DrawableGraph {
-    pub fn draw(&self, ui: &egui::Ui, transform: &Transform, click_tx: impl Fn(Txid)) {
+    pub fn empty() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            edges: Vec::new(),
+        }
+    }
+
+    pub fn draw(&mut self, ui: &egui::Ui, transform: &Transform, click_tx: impl Fn(Txid)) {
+        const TX_WIDTH: f32 = 20.0;
+        const IO_WIDTH: f32 = 10.0;
+
+        const DT: f32 = 0.02;
+        const SCALE: f32 = 5.0;
+        const COOLOFF: f32 = 0.90;
+
         let painter = ui.painter();
 
         let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
         let mut output_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
 
-        for (txid, node) in &self.nodes {
-            let top_left = node.pos + Vec2::new(-5.0, -node.height / 2.0);
-            let rect = transform
-                .rect_to_screen(Rect::from_min_size(top_left, Vec2::new(10.0, node.height)));
+        let positions: HashMap<Txid, Pos2> = self.nodes.iter().map(|(t, n)| (*t, n.pos)).collect();
+
+        for (txid, node) in &mut self.nodes {
+            let top_left = node.pos + Vec2::new(TX_WIDTH / 2.0, -node.height / 2.0);
+            let rect = transform.rect_to_screen(Rect::from_min_size(
+                top_left,
+                Vec2::new(TX_WIDTH, node.height),
+            ));
             let _response = ui
                 .interact(rect, ui.id().with(txid), Sense::hover())
                 .on_hover_ui(|ui| {
@@ -263,7 +285,7 @@ impl DrawableGraph {
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x - 10.0, top_left.y + input.top),
+                    Pos2::new(top_left.x - IO_WIDTH, top_left.y + input.top),
                     Pos2::new(top_left.x, top_left.y + input.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
@@ -294,8 +316,8 @@ impl DrawableGraph {
             let id = ui.id().with("o").with(txid);
             for (o, output) in node.outputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x + 10.0, top_left.y + output.top),
-                    Pos2::new(top_left.x + 20.0, top_left.y + output.bot),
+                    Pos2::new(top_left.x + TX_WIDTH, top_left.y + output.top),
+                    Pos2::new(top_left.x + TX_WIDTH + IO_WIDTH, top_left.y + output.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
@@ -355,6 +377,16 @@ impl DrawableGraph {
 
                 output_rects.insert((*txid, o), rect);
             }
+
+            // Calculate repulsion force and update velocity;
+            for (other_txid, other_node_pos) in &positions {
+                if *other_txid == *txid {
+                    continue;
+                }
+                let diff = *other_node_pos - node.pos;
+                let force = -(SCALE * SCALE) * diff.length() * diff.normalized();
+                node.velocity += force * DT;
+            }
         }
 
         for edge in &self.edges {
@@ -368,6 +400,18 @@ impl DrawableGraph {
                 to_height: to_rect.height(),
             };
             flow.draw(&ui, &transform);
+
+            // Calculate attraction force and update velocity
+            let diff = to_rect.left_center() - from_rect.right_center();
+            let force = diff.length_sq() / SCALE * diff.normalized();
+            self.nodes.get_mut(&edge.source).unwrap().velocity += force * DT;
+            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * DT;
+        }
+
+        // Update positions
+        for (_txid, node) in &mut self.nodes {
+            node.velocity *= COOLOFF;
+            node.pos += node.velocity * DT;
         }
     }
 }
