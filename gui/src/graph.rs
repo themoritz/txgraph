@@ -162,6 +162,7 @@ pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
                 DrawableNode {
                     pos: Pos2::new(x, y),
                     velocity: Vec2::new(0.0, 0.0),
+                    dragged: false,
                     height,
                     tx_value: tx.amount(),
                     tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
@@ -192,6 +193,7 @@ pub struct DrawableNode {
     /// Center of tx rect.
     pos: Pos2,
     velocity: Vec2,
+    dragged: bool,
     height: f32,
     tx_value: u64,
     tx_timestamp: String,
@@ -265,8 +267,8 @@ impl DrawableGraph {
                 top_left,
                 Vec2::new(TX_WIDTH, node.height),
             ));
-            let _response = ui
-                .interact(rect, ui.id().with(txid), Sense::hover())
+            let response = ui
+                .interact(rect, ui.id().with(txid), Sense::drag())
                 .on_hover_ui(|ui| {
                     ui.label(format!("Tx: {}", txid));
                     ui.label(format!("Total amount: {}", Sats(node.tx_value)));
@@ -275,6 +277,15 @@ impl DrawableGraph {
                         node.tx_timestamp, node.block_height
                     ));
                 });
+
+            if response.dragged() {
+                node.dragged = true;
+                node.velocity = Vec2::ZERO;
+                node.pos += transform.vec_from_screen(response.drag_delta());
+            } else {
+                node.dragged = false;
+            }
+
             painter.rect(
                 rect,
                 Rounding::none(),
@@ -411,7 +422,9 @@ impl DrawableGraph {
         // Update positions
         for (_txid, node) in &mut self.nodes {
             node.velocity *= COOLOFF;
-            node.pos += node.velocity * DT;
+            if !node.dragged {
+                node.pos += node.velocity * DT;
+            }
         }
     }
 }
