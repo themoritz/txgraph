@@ -1,10 +1,13 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::mpsc::{channel, Receiver, Sender, TryRecvError},
+};
 
-use egui::{mutex::Mutex, CursorIcon, Frame, Sense, TextEdit};
+use egui::{CursorIcon, Frame, Sense, TextEdit};
 
 use crate::{
-    bitcoin::{dummy_transactions, Transaction, Txid},
-    graph::{self, to_drawable, DrawableGraph},
+    bitcoin::{Transaction, Txid},
+    graph::{to_drawable, DrawableGraph},
     transform::Transform,
 };
 
@@ -28,9 +31,37 @@ pub struct AppState {
     loading: bool,
 }
 
+pub enum Update {
+    AddTx { txid: Txid, tx: Transaction },
+    RemoveTx { txid: Txid },
+    Loading,
+    LoadingDone,
+    Error { err: String },
+}
+
+impl AppState {
+    pub fn apply_update(&mut self, update: Update) {
+        match update {
+            Update::AddTx { txid, tx } => {
+                self.transactions.insert(txid, tx);
+                self.graph = to_drawable(&self.transactions);
+            }
+            Update::RemoveTx { txid } => {
+                self.transactions.remove(&txid);
+                self.graph = to_drawable(&self.transactions);
+            }
+            Update::Loading => self.loading = true,
+            Update::LoadingDone => self.loading = false,
+            Update::Error { err } => self.err = Some(err),
+        }
+    }
+}
+
 pub struct App {
     store: AppStore,
-    state: Arc<Mutex<AppState>>,
+    state: AppState,
+    update_sender: Sender<Update>,
+    update_receiver: Receiver<Update>,
     transform: Transform,
 }
 
@@ -50,19 +81,24 @@ impl App {
             AppStore::default()
         };
 
-        let transactions = dummy_transactions();
+        // let transactions = dummy_transactions();
+        let transactions = HashMap::new();
         let graph = to_drawable(&transactions);
         let mut transform = Transform::default();
         transform.translate(cc.integration_info.window_info.size / 4.0);
 
+        let (update_sender, update_receiver) = channel();
+
         App {
             store,
-            state: Arc::new(Mutex::new(AppState {
+            state: AppState {
                 transactions,
                 graph,
                 err: None,
                 loading: false,
-            })),
+            },
+            update_sender,
+            update_receiver,
             transform,
         }
     }
@@ -74,23 +110,28 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
-        ctx.request_repaint();
+        loop {
+            match self.update_receiver.try_recv() {
+                Ok(update) => self.state.apply_update(update),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
+            }
+        }
 
-        let state = self.state.clone();
+        let sender = self.update_sender.clone();
 
         let toggle_tx = |txid: Txid| {
-            if state.lock().transactions.contains_key(&txid) {
-                state.lock().transactions.remove(&txid);
+            if self.state.transactions.contains_key(&txid) {
+                sender.send(Update::RemoveTx { txid }).unwrap();
             } else {
                 let request = ehttp::Request::get(format!("http://127.0.0.1:1337/{}", txid));
-                state.lock().loading = true;
+                sender.send(Update::Loading).unwrap();
 
-                let state = state.clone();
                 let ctx = ctx.clone();
+                let sender = sender.clone();
 
                 ehttp::fetch(request, move |response| {
-                    state.lock().loading = false;
+                    sender.send(Update::LoadingDone).unwrap();
                     match response {
                         Ok(response) => {
                             if response.status == 200 {
@@ -98,27 +139,48 @@ impl eframe::App for App {
                                     match serde_json::from_str(&text) {
                                         Ok(tx) => {
                                             println!("{:#?}", tx);
-                                            let mut st = state.lock();
-                                            st.transactions.insert(txid, tx);
-                                            st.graph = to_drawable(&st.transactions);
+                                            sender.send(Update::AddTx { txid, tx }).unwrap();
                                         }
-                                        Err(err) => state.lock().err = Some(err.to_string()),
+                                        Err(err) => {
+                                            sender
+                                                .send(Update::Error {
+                                                    err: err.to_string(),
+                                                })
+                                                .unwrap();
+                                        }
                                     }
                                 } else {
-                                    state.lock().err = Some("No text body response.".to_string());
+                                    sender
+                                        .send(Update::Error {
+                                            err: "No text body response".to_string(),
+                                        })
+                                        .unwrap();
                                 }
                             } else {
-                                state.lock().err = response.text().map(|t| t.to_owned());
+                                sender
+                                    .send(Update::Error {
+                                        err: response
+                                            .text()
+                                            .map_or("".to_string(), |t| t.to_owned()),
+                                    })
+                                    .unwrap();
                             }
                         }
                         Err(err) => {
-                            state.lock().err = Some(err.to_string());
+                            sender
+                                .send(Update::Error {
+                                    err: err.to_string(),
+                                })
+                                .unwrap();
                         }
                     }
                     ctx.request_repaint();
                 });
             }
         };
+
+        let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
+        ctx.request_repaint();
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             let mut response = ui.allocate_response(
@@ -140,7 +202,7 @@ impl eframe::App for App {
                 self.transform.translate(response.drag_delta());
             }
 
-            state.lock().graph.draw(ui, &self.transform, toggle_tx);
+            self.state.graph.draw(ui, &self.transform, toggle_tx);
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {
@@ -161,15 +223,14 @@ impl eframe::App for App {
             });
 
             ui.horizontal(|ui| {
-                let mut state = self.state.lock();
-                if state.loading {
+                if self.state.loading {
                     ui.spinner();
                 }
 
-                if let Some(err) = &state.err {
+                if let Some(err) = &self.state.err {
                     ui.label(format!("Error: {}", err));
                     if ui.button("Ok").clicked() {
-                        state.err = None;
+                        self.state.err = None;
                     }
                 }
             });
