@@ -211,6 +211,7 @@ impl DrawableGraph {
     ) {
         const TX_WIDTH: f32 = 20.0;
         const IO_WIDTH: f32 = 10.0;
+        let scale2 = layout_params.scale * layout_params.scale;
 
         let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0, 0.0);
 
@@ -366,7 +367,7 @@ impl DrawableGraph {
                     continue;
                 }
                 let diff = *other_node_pos - node.pos;
-                let force = -(layout_params.scale * layout_params.scale) / diff.length()
+                let force = -scale2 / diff.length().powf(layout_params.tx_repulsion_dropoff)
                     * diff.normalized();
                 node.velocity += force * layout_params.dt;
             }
@@ -386,9 +387,23 @@ impl DrawableGraph {
 
             // Calculate attraction force and update velocity
             let diff = to_rect.left_center() - from_rect.right_center();
-            let force = diff.length_sq() / layout_params.scale * diff.normalized();
+            let mut force = diff.length_sq() / layout_params.scale * diff.normalized();
+            force.y *= layout_params.y_compress;
             self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout_params.dt;
             self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
+
+            // Repulsion force between layers
+            let max_layer_repulsion = scale2 / 2.0;
+            let force = Vec2::new(
+                if diff.x <= 0.0 {
+                    max_layer_repulsion
+                } else {
+                    (scale2 / diff.x).min(max_layer_repulsion)
+                },
+                0.0,
+            );
+            self.nodes.get_mut(&edge.source).unwrap().velocity -= force * layout_params.dt;
+            self.nodes.get_mut(&edge.target).unwrap().velocity += force * layout_params.dt;
         }
 
         // Update positions

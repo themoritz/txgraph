@@ -31,6 +31,8 @@ pub struct LayoutParams {
     pub scale: f32,
     pub dt: f32,
     pub cooloff: f32,
+    pub y_compress: f32,
+    pub tx_repulsion_dropoff: f32,
 }
 
 impl Default for LayoutParams {
@@ -39,6 +41,8 @@ impl Default for LayoutParams {
             scale: 80.0,
             dt: 0.08,
             cooloff: 0.85,
+            y_compress: 2.5,
+            tx_repulsion_dropoff: 1.0,
         }
     }
 }
@@ -236,6 +240,20 @@ impl eframe::App for App {
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.scale,
                         5.0..=200.0,
+                    ));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Y Compress:");
+                    ui.add(egui::Slider::new(
+                        &mut self.store.layout_params.y_compress,
+                        1.0..=5.0,
+                    ));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Tx repulsion factor:");
+                    ui.add(egui::Slider::new(
+                        &mut self.store.layout_params.tx_repulsion_dropoff,
+                        0.5..=2.0,
                     ));
                 });
                 ui.horizontal(|ui| {
