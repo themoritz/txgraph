@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
 
 use crate::{
+    app::LayoutParams,
     bezier::Edge,
     bitcoin::{Sats, Transaction, Txid},
     transform::Transform,
@@ -41,6 +42,7 @@ pub struct DrawableInput {
     address: String,
     address_type: String,
     funding_txid: Txid, // TODO: coinbase tx?
+    funding_vout: u32,
 }
 
 pub struct DrawableOutput {
@@ -109,6 +111,7 @@ impl DrawableGraph {
                     address: i.address.clone(),
                     address_type: i.address_type.clone(),
                     funding_txid: i.txid,
+                    funding_vout: i.vout,
                 }
             })
             .collect();
@@ -184,7 +187,7 @@ impl DrawableGraph {
                         .inputs
                         .iter()
                         .enumerate()
-                        .find(|(_, inp)| inp.funding_txid == txid)
+                        .find(|(_, inp)| inp.funding_txid == txid && inp.funding_vout as usize == o)
                         .unwrap()
                         .0;
                     self.edges.push(DrawableEdge {
@@ -204,13 +207,12 @@ impl DrawableGraph {
         transform: &Transform,
         load_tx: impl Fn(Txid, Pos2),
         remove_tx: impl Fn(Txid),
-        scale: f32,
+        layout_params: &LayoutParams,
     ) {
         const TX_WIDTH: f32 = 20.0;
         const IO_WIDTH: f32 = 10.0;
 
-        const DT: f32 = 0.02;
-        const COOLOFF: f32 = 0.90;
+        let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0, 0.0);
 
         let painter = ui.painter();
 
@@ -222,7 +224,7 @@ impl DrawableGraph {
         let txids: HashSet<Txid> = self.nodes.keys().map(|t| *t).collect();
 
         for (txid, node) in &mut self.nodes {
-            let top_left = node.pos + Vec2::new(TX_WIDTH / 2.0, -node.height / 2.0);
+            let top_left = node.pos - Vec2::new(TX_WIDTH / 2.0, node.height / 2.0);
             let rect = transform.rect_to_screen(Rect::from_min_size(
                 top_left,
                 Vec2::new(TX_WIDTH, node.height),
@@ -275,7 +277,7 @@ impl DrawableGraph {
                     if txids.contains(&input.funding_txid) {
                         remove_tx(input.funding_txid);
                     } else {
-                        load_tx(input.funding_txid, rect.left_center());
+                        load_tx(input.funding_txid, rect.left_center() - initial_dist);
                     }
                 }
 
@@ -331,7 +333,7 @@ impl DrawableGraph {
                         if txids.contains(spending_txid) {
                             remove_tx(*spending_txid);
                         } else {
-                            load_tx(*spending_txid, rect.right_center());
+                            load_tx(*spending_txid, rect.right_center() + initial_dist);
                         }
                     }
                 }
@@ -358,13 +360,15 @@ impl DrawableGraph {
             }
 
             // Calculate repulsion force and update velocity;
+            // TODO: Only nodes in the same connected component
             for (other_txid, other_node_pos) in &positions {
                 if *other_txid == *txid {
                     continue;
                 }
                 let diff = *other_node_pos - node.pos;
-                let force = -(scale * scale) * diff.length().sqrt() * diff.normalized();
-                node.velocity += force * DT;
+                let force = -(layout_params.scale * layout_params.scale) / diff.length()
+                    * diff.normalized();
+                node.velocity += force * layout_params.dt;
             }
         }
 
@@ -382,16 +386,16 @@ impl DrawableGraph {
 
             // Calculate attraction force and update velocity
             let diff = to_rect.left_center() - from_rect.right_center();
-            let force = diff.length_sq() / scale * diff.normalized();
-            self.nodes.get_mut(&edge.source).unwrap().velocity += force * DT;
-            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * DT;
+            let force = diff.length_sq() / layout_params.scale * diff.normalized();
+            self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout_params.dt;
+            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
         }
 
         // Update positions
         for (_txid, node) in &mut self.nodes {
-            node.velocity *= COOLOFF;
+            node.velocity *= layout_params.cooloff;
             if !node.dragged {
-                node.pos += node.velocity * DT;
+                node.pos += node.velocity * layout_params.dt;
             }
         }
     }

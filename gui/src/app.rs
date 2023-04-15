@@ -13,14 +13,32 @@ use crate::{
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     tx: String,
-    scale: f32,
+    layout_params: LayoutParams,
 }
 
 impl Default for AppStore {
     fn default() -> Self {
         Self {
             tx: String::new(),
-            scale: 2.0,
+            layout_params: LayoutParams::default(),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct LayoutParams {
+    pub scale: f32,
+    pub dt: f32,
+    pub cooloff: f32,
+}
+
+impl Default for LayoutParams {
+    fn default() -> Self {
+        Self {
+            scale: 80.0,
+            dt: 0.08,
+            cooloff: 0.85,
         }
     }
 }
@@ -142,7 +160,6 @@ impl eframe::App for App {
                             if let Some(text) = response.text() {
                                 match serde_json::from_str(&text) {
                                     Ok(tx) => {
-                                        println!("{:#?}", tx);
                                         sender.send(Update::AddTx { txid, tx, pos }).unwrap();
                                     }
                                     Err(err) => {
@@ -203,12 +220,40 @@ impl eframe::App for App {
                 self.transform.translate(response.drag_delta());
             }
 
-            self.state
-                .graph
-                .draw(ui, &self.transform, load_tx, remove_tx, self.store.scale);
+            self.state.graph.draw(
+                ui,
+                &self.transform,
+                load_tx,
+                remove_tx,
+                &self.store.layout_params,
+            );
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {
+            ui.collapsing("Layout", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Scale:");
+                    ui.add(egui::Slider::new(
+                        &mut self.store.layout_params.scale,
+                        5.0..=200.0,
+                    ));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("dt:");
+                    ui.add(egui::Slider::new(
+                        &mut self.store.layout_params.dt,
+                        0.001..=0.2,
+                    ));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Cooloff:");
+                    ui.add(egui::Slider::new(
+                        &mut self.store.layout_params.cooloff,
+                        0.5..=0.99,
+                    ));
+                });
+            });
+
             ui.horizontal(|ui| {
                 ui.label("Load Tx");
                 ui.add(TextEdit::singleline(&mut self.store.tx));
@@ -236,10 +281,6 @@ impl eframe::App for App {
                         self.state.err = None;
                     }
                 }
-            });
-
-            ui.horizontal(|ui| {
-                ui.add(egui::Slider::new(&mut self.store.scale, 0.5..=10.0));
             });
         });
     }
