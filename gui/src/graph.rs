@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
 
@@ -7,182 +7,6 @@ use crate::{
     bitcoin::{Sats, Transaction, Txid},
     transform::Transform,
 };
-
-pub fn to_drawable(txs: &HashMap<Txid, Transaction>) -> DrawableGraph {
-    let mut layers: Vec<Vec<Txid>> = Vec::new();
-
-    let edges: Vec<DrawableEdge> = txs
-        .iter()
-        .flat_map(|(txid, tx)| {
-            tx.inputs
-                .iter()
-                .enumerate()
-                .filter_map(|(i, input)| {
-                    txs.get(&input.txid).map(|input_tx| {
-                        let o = input_tx
-                            .outputs
-                            .iter()
-                            .enumerate()
-                            .find(|(_, output)| output.spending_txid == Some(*txid))
-                            .unwrap()
-                            .0;
-                        DrawableEdge {
-                            source: input.txid,
-                            source_pos: o,
-                            target: *txid,
-                            target_pos: i,
-                        }
-                    })
-                })
-                .collect::<Vec<DrawableEdge>>()
-        })
-        .collect();
-
-    let mut no_inputs: HashMap<Txid, usize> = txs.iter().map(|(txid, _)| (*txid, 0)).collect();
-    for edge in &edges {
-        no_inputs
-            .entry(edge.target)
-            .and_modify(|n| *n += 1)
-            .or_insert(0);
-    }
-
-    let mut next_layer: Vec<Txid> = no_inputs
-        .iter()
-        .filter_map(|(txid, n)| if *n == 0 { Some(*txid) } else { None })
-        .collect();
-    next_layer.sort();
-
-    while !next_layer.is_empty() {
-        let current_layer = next_layer.clone();
-        layers.push(next_layer);
-        next_layer = Vec::new();
-
-        for txid in current_layer {
-            for o in &txs.get(&txid).unwrap().outputs {
-                if let Some(target) = o.spending_txid {
-                    no_inputs.entry(target).and_modify(|n| {
-                        *n -= 1;
-                        if *n == 0 {
-                            next_layer.push(target);
-                        }
-                    });
-                }
-            }
-        }
-    }
-
-    fn scale(value: u64) -> f32 {
-        f32::powf(value as f32, 1.0 / 3.0).round() / 10.0
-    }
-
-    let mut nodes = HashMap::new();
-
-    let mut x = 0.0;
-    const NODE_SEPARATION: f32 = 20.0;
-    const LAYER_SEPARATION: f32 = 100.0;
-
-    for layer in layers {
-        let mut layer_height = -NODE_SEPARATION;
-        for txid in &layer {
-            layer_height += scale(txs.get(txid).unwrap().amount()) + NODE_SEPARATION;
-        }
-
-        let mut y = -layer_height / 2.0;
-
-        for txid in &layer {
-            let tx = txs.get(txid).unwrap();
-            let height = scale(tx.amount());
-
-            y += height / 2.0;
-
-            let input_height: f32 = tx.inputs.iter().map(|input| scale(input.value)).sum();
-
-            let output_height = tx
-                .outputs
-                .iter()
-                .map(|output| scale(output.value))
-                .sum::<f32>()
-                + scale(tx.fees());
-
-            let mut bot = 0.0;
-
-            let inputs = tx
-                .inputs
-                .iter()
-                .map(|i| {
-                    let h = scale(i.value) * height / input_height;
-                    bot += h;
-                    DrawableInput {
-                        top: bot - h,
-                        bot,
-                        value: i.value,
-                        address: i.address.clone(),
-                        address_type: i.address_type.clone(),
-                        funding_txid: i.txid,
-                    }
-                })
-                .collect();
-
-            bot = 0.0;
-
-            let mut outputs: Vec<DrawableOutput> = tx
-                .outputs
-                .iter()
-                .map(|o| {
-                    let h = scale(o.value) * height / output_height;
-                    bot += h;
-                    DrawableOutput {
-                        top: bot - h,
-                        bot,
-                        value: o.value,
-                        output_type: match o.spending_txid {
-                            None => OutputType::Utxo {
-                                address: o.address.clone(),
-                                address_type: o.address_type.clone(),
-                            },
-                            Some(txid) => OutputType::Spent {
-                                spending_txid: txid,
-                                address: o.address.clone(),
-                                address_type: o.address_type.clone(),
-                            },
-                        },
-                    }
-                })
-                .collect();
-
-            outputs.push(DrawableOutput {
-                top: bot,
-                bot: bot + scale(tx.fees()) * height / output_height,
-                value: tx.fees(),
-                output_type: OutputType::Fees,
-            });
-
-            nodes.insert(
-                *txid,
-                DrawableNode {
-                    pos: Pos2::new(x, y),
-                    velocity: Vec2::new(0.0, 0.0),
-                    dragged: false,
-                    height,
-                    tx_value: tx.amount(),
-                    tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
-                        .unwrap()
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
-                    block_height: tx.block_height,
-                    inputs,
-                    outputs,
-                },
-            );
-
-            y += height / 2.0 + NODE_SEPARATION;
-        }
-
-        x += LAYER_SEPARATION;
-    }
-
-    DrawableGraph { nodes, edges }
-}
 
 pub struct DrawableGraph {
     nodes: HashMap<Txid, DrawableNode>,
@@ -202,6 +26,7 @@ pub struct DrawableNode {
     outputs: Vec<DrawableOutput>,
 }
 
+#[derive(Clone)]
 pub struct DrawableEdge {
     source: Txid,
     source_pos: usize,
@@ -246,12 +71,145 @@ impl DrawableGraph {
         }
     }
 
-    pub fn draw(&mut self, ui: &egui::Ui, transform: &Transform, click_tx: impl Fn(Txid)) {
+    pub fn remove_tx(&mut self, txid: Txid) {
+        self.nodes.remove(&txid);
+        self.edges
+            .retain(|edge| edge.source != txid && edge.target != txid);
+    }
+
+    pub fn add_tx(&mut self, txid: Txid, tx: Transaction, pos: Pos2) {
+        // Add node
+        fn scale(value: u64) -> f32 {
+            f32::powf(value as f32, 1.0 / 3.0).round() / 10.0
+        }
+
+        let height = scale(tx.amount());
+
+        let input_height: f32 = tx.inputs.iter().map(|input| scale(input.value)).sum();
+
+        let output_height = tx
+            .outputs
+            .iter()
+            .map(|output| scale(output.value))
+            .sum::<f32>()
+            + scale(tx.fees());
+
+        let mut bot = 0.0;
+
+        let inputs = tx
+            .inputs
+            .iter()
+            .map(|i| {
+                let h = scale(i.value) * height / input_height;
+                bot += h;
+                DrawableInput {
+                    top: bot - h,
+                    bot,
+                    value: i.value,
+                    address: i.address.clone(),
+                    address_type: i.address_type.clone(),
+                    funding_txid: i.txid,
+                }
+            })
+            .collect();
+
+        bot = 0.0;
+
+        let mut outputs: Vec<DrawableOutput> = tx
+            .outputs
+            .iter()
+            .map(|o| {
+                let h = scale(o.value) * height / output_height;
+                bot += h;
+                DrawableOutput {
+                    top: bot - h,
+                    bot,
+                    value: o.value,
+                    output_type: match o.spending_txid {
+                        None => OutputType::Utxo {
+                            address: o.address.clone(),
+                            address_type: o.address_type.clone(),
+                        },
+                        Some(txid) => OutputType::Spent {
+                            spending_txid: txid,
+                            address: o.address.clone(),
+                            address_type: o.address_type.clone(),
+                        },
+                    },
+                }
+            })
+            .collect();
+
+        outputs.push(DrawableOutput {
+            top: bot,
+            bot: bot + scale(tx.fees()) * height / output_height,
+            value: tx.fees(),
+            output_type: OutputType::Fees,
+        });
+
+        self.nodes.insert(
+            txid,
+            DrawableNode {
+                pos,
+                velocity: Vec2::new(0.0, 0.0),
+                dragged: false,
+                height,
+                tx_value: tx.amount(),
+                tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
+                    .unwrap()
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string(),
+                block_height: tx.block_height,
+                inputs,
+                outputs,
+            },
+        );
+
+        // Add edges
+        for (i, input) in tx.inputs.iter().enumerate() {
+            if self.nodes.contains_key(&input.txid) {
+                self.edges.push(DrawableEdge {
+                    source: input.txid,
+                    source_pos: input.vout as usize,
+                    target: txid,
+                    target_pos: i,
+                });
+            }
+        }
+
+        for (o, output) in tx.outputs.iter().enumerate() {
+            if let Some(spending_txid) = output.spending_txid {
+                if let Some(spending_tx) = self.nodes.get(&spending_txid) {
+                    let target_pos = spending_tx
+                        .inputs
+                        .iter()
+                        .enumerate()
+                        .find(|(_, inp)| inp.funding_txid == txid)
+                        .unwrap()
+                        .0;
+                    self.edges.push(DrawableEdge {
+                        source: txid,
+                        source_pos: o,
+                        target: spending_txid,
+                        target_pos,
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn draw(
+        &mut self,
+        ui: &egui::Ui,
+        transform: &Transform,
+        load_tx: impl Fn(Txid, Pos2),
+        remove_tx: impl Fn(Txid),
+        scale: f32,
+    ) {
         const TX_WIDTH: f32 = 20.0;
         const IO_WIDTH: f32 = 10.0;
 
         const DT: f32 = 0.02;
-        const SCALE: f32 = 5.0;
         const COOLOFF: f32 = 0.90;
 
         let painter = ui.painter();
@@ -260,6 +218,8 @@ impl DrawableGraph {
         let mut output_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
 
         let positions: HashMap<Txid, Pos2> = self.nodes.iter().map(|(t, n)| (*t, n.pos)).collect();
+
+        let txids: HashSet<Txid> = self.nodes.keys().map(|t| *t).collect();
 
         for (txid, node) in &mut self.nodes {
             let top_left = node.pos + Vec2::new(TX_WIDTH / 2.0, -node.height / 2.0);
@@ -312,7 +272,11 @@ impl DrawableGraph {
                     });
 
                 if response.clicked() {
-                    click_tx(input.funding_txid);
+                    if txids.contains(&input.funding_txid) {
+                        remove_tx(input.funding_txid);
+                    } else {
+                        load_tx(input.funding_txid, rect.left_center());
+                    }
                 }
 
                 painter.rect_stroke(
@@ -364,7 +328,11 @@ impl DrawableGraph {
                 } = &output.output_type
                 {
                     if response.clicked() {
-                        click_tx(*spending_txid);
+                        if txids.contains(spending_txid) {
+                            remove_tx(*spending_txid);
+                        } else {
+                            load_tx(*spending_txid, rect.right_center());
+                        }
                     }
                 }
 
@@ -395,7 +363,7 @@ impl DrawableGraph {
                     continue;
                 }
                 let diff = *other_node_pos - node.pos;
-                let force = -(SCALE * SCALE) * diff.length() * diff.normalized();
+                let force = -(scale * scale) * diff.length().sqrt() * diff.normalized();
                 node.velocity += force * DT;
             }
         }
@@ -414,7 +382,7 @@ impl DrawableGraph {
 
             // Calculate attraction force and update velocity
             let diff = to_rect.left_center() - from_rect.right_center();
-            let force = diff.length_sq() / SCALE * diff.normalized();
+            let force = diff.length_sq() / scale * diff.normalized();
             self.nodes.get_mut(&edge.source).unwrap().velocity += force * DT;
             self.nodes.get_mut(&edge.target).unwrap().velocity -= force * DT;
         }

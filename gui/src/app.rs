@@ -1,13 +1,10 @@
-use std::{
-    collections::HashMap,
-    sync::mpsc::{channel, Receiver, Sender, TryRecvError},
-};
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{CursorIcon, Frame, Sense, TextEdit};
+use egui::{CursorIcon, Frame, Pos2, Sense, TextEdit};
 
 use crate::{
     bitcoin::{Transaction, Txid},
-    graph::{to_drawable, DrawableGraph},
+    graph::DrawableGraph,
     transform::Transform,
 };
 
@@ -16,39 +13,48 @@ use crate::{
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     tx: String,
+    scale: f32,
 }
 
 impl Default for AppStore {
     fn default() -> Self {
-        Self { tx: String::new() }
+        Self {
+            tx: String::new(),
+            scale: 2.0,
+        }
     }
 }
 
 pub struct AppState {
-    transactions: HashMap<Txid, Transaction>,
     graph: DrawableGraph,
     err: Option<String>,
     loading: bool,
 }
 
 pub enum Update {
-    AddTx { txid: Txid, tx: Transaction },
-    RemoveTx { txid: Txid },
+    AddTx {
+        txid: Txid,
+        tx: Transaction,
+        pos: Pos2,
+    },
+    RemoveTx {
+        txid: Txid,
+    },
     Loading,
     LoadingDone,
-    Error { err: String },
+    Error {
+        err: String,
+    },
 }
 
 impl AppState {
     pub fn apply_update(&mut self, update: Update) {
         match update {
-            Update::AddTx { txid, tx } => {
-                self.transactions.insert(txid, tx);
-                self.graph = to_drawable(&self.transactions);
+            Update::AddTx { txid, tx, pos } => {
+                self.graph.add_tx(txid, tx, pos);
             }
             Update::RemoveTx { txid } => {
-                self.transactions.remove(&txid);
-                self.graph = to_drawable(&self.transactions);
+                self.graph.remove_tx(txid);
             }
             Update::Loading => self.loading = true,
             Update::LoadingDone => self.loading = false,
@@ -81,9 +87,7 @@ impl App {
             AppStore::default()
         };
 
-        // let transactions = dummy_transactions();
-        let transactions = HashMap::new();
-        let graph = to_drawable(&transactions);
+        let graph = DrawableGraph::empty();
         let mut transform = Transform::default();
         transform.translate(cc.integration_info.window_info.size / 4.0);
 
@@ -92,7 +96,6 @@ impl App {
         App {
             store,
             state: AppState {
-                transactions,
                 graph,
                 err: None,
                 loading: false,
@@ -120,63 +123,61 @@ impl eframe::App for App {
 
         let sender = self.update_sender.clone();
 
-        let toggle_tx = |txid: Txid| {
-            if self.state.transactions.contains_key(&txid) {
-                sender.send(Update::RemoveTx { txid }).unwrap();
-            } else {
-                let request = ehttp::Request::get(format!("http://127.0.0.1:1337/{}", txid));
-                sender.send(Update::Loading).unwrap();
+        let remove_tx = |txid: Txid| {
+            sender.send(Update::RemoveTx { txid }).unwrap();
+        };
 
-                let ctx = ctx.clone();
-                let sender = sender.clone();
+        let load_tx = |txid: Txid, pos: Pos2| {
+            let request = ehttp::Request::get(format!("http://127.0.0.1:1337/{}", txid));
+            sender.send(Update::Loading).unwrap();
 
-                ehttp::fetch(request, move |response| {
-                    sender.send(Update::LoadingDone).unwrap();
-                    match response {
-                        Ok(response) => {
-                            if response.status == 200 {
-                                if let Some(text) = response.text() {
-                                    match serde_json::from_str(&text) {
-                                        Ok(tx) => {
-                                            println!("{:#?}", tx);
-                                            sender.send(Update::AddTx { txid, tx }).unwrap();
-                                        }
-                                        Err(err) => {
-                                            sender
-                                                .send(Update::Error {
-                                                    err: err.to_string(),
-                                                })
-                                                .unwrap();
-                                        }
+            let ctx = ctx.clone();
+            let sender = sender.clone();
+
+            ehttp::fetch(request, move |response| {
+                sender.send(Update::LoadingDone).unwrap();
+                match response {
+                    Ok(response) => {
+                        if response.status == 200 {
+                            if let Some(text) = response.text() {
+                                match serde_json::from_str(&text) {
+                                    Ok(tx) => {
+                                        println!("{:#?}", tx);
+                                        sender.send(Update::AddTx { txid, tx, pos }).unwrap();
                                     }
-                                } else {
-                                    sender
-                                        .send(Update::Error {
-                                            err: "No text body response".to_string(),
-                                        })
-                                        .unwrap();
+                                    Err(err) => {
+                                        sender
+                                            .send(Update::Error {
+                                                err: err.to_string(),
+                                            })
+                                            .unwrap();
+                                    }
                                 }
                             } else {
                                 sender
                                     .send(Update::Error {
-                                        err: response
-                                            .text()
-                                            .map_or("".to_string(), |t| t.to_owned()),
+                                        err: "No text body response".to_string(),
                                     })
                                     .unwrap();
                             }
-                        }
-                        Err(err) => {
+                        } else {
                             sender
                                 .send(Update::Error {
-                                    err: err.to_string(),
+                                    err: response.text().map_or("".to_string(), |t| t.to_owned()),
                                 })
                                 .unwrap();
                         }
                     }
-                    ctx.request_repaint();
-                });
-            }
+                    Err(err) => {
+                        sender
+                            .send(Update::Error {
+                                err: err.to_string(),
+                            })
+                            .unwrap();
+                    }
+                }
+                ctx.request_repaint();
+            });
         };
 
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
@@ -202,7 +203,9 @@ impl eframe::App for App {
                 self.transform.translate(response.drag_delta());
             }
 
-            self.state.graph.draw(ui, &self.transform, toggle_tx);
+            self.state
+                .graph
+                .draw(ui, &self.transform, load_tx, remove_tx, self.store.scale);
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {
@@ -213,7 +216,7 @@ impl eframe::App for App {
                 match Txid::new(&self.store.tx) {
                     Ok(txid) => {
                         if ui.button("Go").clicked() {
-                            toggle_tx(txid);
+                            load_tx(txid, Pos2::new(0.0, 0.0));
                         }
                     }
                     Err(e) => {
@@ -233,6 +236,10 @@ impl eframe::App for App {
                         self.state.err = None;
                     }
                 }
+            });
+
+            ui.horizontal(|ui| {
+                ui.add(egui::Slider::new(&mut self.store.scale, 0.5..=10.0));
             });
         });
     }
