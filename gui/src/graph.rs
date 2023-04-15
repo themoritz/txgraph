@@ -213,14 +213,23 @@ impl DrawableGraph {
         const IO_WIDTH: f32 = 10.0;
         let scale2 = layout_params.scale * layout_params.scale;
 
-        let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0, 0.0);
+        let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0 + 5.0, 0.0);
 
         let painter = ui.painter();
 
         let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
         let mut output_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
 
-        let positions: HashMap<Txid, Pos2> = self.nodes.iter().map(|(t, n)| (*t, n.pos)).collect();
+        let rects: HashMap<Txid, Rect> = self
+            .nodes
+            .iter()
+            .map(|(t, n)| {
+                (
+                    *t,
+                    Rect::from_center_size(n.pos, Vec2::new(TX_WIDTH + 2.0 * IO_WIDTH, n.height)),
+                )
+            })
+            .collect();
 
         let txids: HashSet<Txid> = self.nodes.keys().map(|t| *t).collect();
 
@@ -360,15 +369,17 @@ impl DrawableGraph {
                 output_rects.insert((*txid, o), rect);
             }
 
-            // Calculate repulsion force and update velocity;
+            // Calculate repulsion force between txs and update velocity;
             // TODO: Only nodes in the same connected component
-            for (other_txid, other_node_pos) in &positions {
+            for (other_txid, other_rect) in &rects {
                 if *other_txid == *txid {
                     continue;
                 }
-                let diff = *other_node_pos - node.pos;
-                let force = -scale2 / diff.length().powf(layout_params.tx_repulsion_dropoff)
-                    * diff.normalized();
+                let this_rect = rects.get(txid).unwrap();
+                let diff = other_rect.center() - this_rect.center();
+                let spacing = clear_spacing(this_rect, other_rect);
+                let force =
+                    -scale2 / spacing.powf(layout_params.tx_repulsion_dropoff) * diff.normalized();
                 node.velocity += force * layout_params.dt;
             }
         }
@@ -414,4 +425,10 @@ impl DrawableGraph {
             }
         }
     }
+}
+
+fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
+    let x = (a.center().x - b.center().x).abs() - (b.width() + a.width()) / 2.0;
+    let y = (a.center().y - b.center().y).abs() - (b.height() + a.height()) / 2.0;
+    x.max(y).max(1.0)
 }
