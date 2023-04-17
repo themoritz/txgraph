@@ -148,7 +148,7 @@ impl eframe::App for App {
         };
 
         let load_tx = |txid: Txid, pos: Pos2| {
-            let request = ehttp::Request::get(format!("http://127.0.0.1:1337/{}", txid));
+            let request = ehttp::Request::get(format!("http://127.0.0.1:1337/tx/{}", txid));
             sender.send(Update::Loading).unwrap();
 
             let ctx = ctx.clone();
@@ -204,7 +204,8 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             if !self.transform_initialized {
-                self.transform.translate(ui.available_size_before_wrap() / 2.0);
+                self.transform
+                    .translate(ui.available_size_before_wrap() / 2.0);
                 self.transform_initialized = true;
             }
 

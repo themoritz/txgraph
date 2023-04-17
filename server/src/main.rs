@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, path::Path};
 
 use bitcoin_explorer::FBlock;
 use chrono::Utc;
@@ -12,6 +12,7 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
+use hyper_staticfile::Static;
 use log::info;
 use simple_logger::SimpleLogger;
 
@@ -26,7 +27,7 @@ async fn main() -> Result<()> {
 
     let store = Arc::new(Store::new(
         "/Users/moritz/code/coin_tracker/server/txs.db",
-        "/Users/moritz/Library/Application Support/Bitcoin",
+        "/Volumes/Samsung T7 Shield/Bitcoin",
     )?);
     let store2 = store.clone();
 
@@ -40,10 +41,13 @@ async fn main() -> Result<()> {
 
     let addr = "127.0.0.1:1337".parse().unwrap();
 
+    let static_ = Static::new(Path::new("../gui/dist/"));
+
     let service = make_service_fn(move |_| {
         let store = store2.clone();
+        let static_ = static_.clone();
         async {
-            Ok::<_, GenericError>(service_fn(move |req| server::server(store.to_owned(), req)))
+            Ok::<_, GenericError>(service_fn(move |req| server::server(static_.to_owned(), store.to_owned(), req)))
         }
     });
 
