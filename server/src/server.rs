@@ -18,6 +18,7 @@ pub async fn server(store: Arc<Store>, req: Request<Body>) -> Result<Response<Bo
                             let json = serde_json::to_string(&tx).unwrap();
                             let response = Response::builder()
                                 .header(header::CONTENT_TYPE, "application/json")
+                                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                                 .body(Body::from(json))
                                 .unwrap();
 
@@ -26,6 +27,7 @@ pub async fn server(store: Arc<Store>, req: Request<Body>) -> Result<Response<Bo
                         Err(err) => {
                             let response = Response::builder()
                                 .status(StatusCode::NOT_FOUND)
+                                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                                 .body(Body::from(format!("Tx not found: {:?}", err)))
                                 .unwrap();
                             return Ok(response);
@@ -35,6 +37,7 @@ pub async fn server(store: Arc<Store>, req: Request<Body>) -> Result<Response<Bo
                 Err(err) => {
                     let response = Response::builder()
                         .status(StatusCode::BAD_REQUEST)
+                        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                         .body(Body::from(format!("Could not parse txid: {}", err)))
                         .unwrap();
                     return Ok(response);
@@ -44,6 +47,7 @@ pub async fn server(store: Arc<Store>, req: Request<Body>) -> Result<Response<Bo
         _ => {
             let response = Response::builder()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                 .body(Body::empty())
                 .unwrap();
             Ok(response)

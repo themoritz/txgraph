@@ -41,8 +41,8 @@ impl Default for LayoutParams {
             scale: 80.0,
             dt: 0.08,
             cooloff: 0.85,
-            y_compress: 2.5,
-            tx_repulsion_dropoff: 1.0,
+            y_compress: 2.0,
+            tx_repulsion_dropoff: 1.2,
         }
     }
 }
@@ -90,6 +90,7 @@ pub struct App {
     state: AppState,
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
+    transform_initialized: bool,
     transform: Transform,
 }
 
@@ -109,22 +110,19 @@ impl App {
             AppStore::default()
         };
 
-        let graph = DrawableGraph::empty();
-        let mut transform = Transform::default();
-        transform.translate(cc.integration_info.window_info.size / 4.0);
-
         let (update_sender, update_receiver) = channel();
 
         App {
             store,
             state: AppState {
-                graph,
+                graph: DrawableGraph::empty(),
                 err: None,
                 loading: false,
             },
             update_sender,
             update_receiver,
-            transform,
+            transform_initialized: false,
+            transform: Transform::default(),
         }
     }
 }
@@ -205,6 +203,11 @@ impl eframe::App for App {
         ctx.request_repaint();
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
+            if !self.transform_initialized {
+                self.transform.translate(ui.available_size_before_wrap() / 2.0);
+                self.transform_initialized = true;
+            }
+
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
                 Sense::click_and_drag().union(Sense::hover()),
