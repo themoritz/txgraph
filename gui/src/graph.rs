@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use egui::{Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
+use egui::{show_tooltip_at_pointer, Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
 
 use crate::{
     app::LayoutParams,
@@ -27,7 +27,7 @@ pub struct DrawableNode {
     outputs: Vec<DrawableOutput>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct DrawableEdge {
     source: Txid,
     source_pos: usize,
@@ -394,7 +394,18 @@ impl DrawableGraph {
                 to: to_rect.left_top(),
                 to_height: to_rect.height(),
             };
-            flow.draw(&ui, &transform);
+
+            if flow.draw(&ui, &transform).hovering {
+                let id = ui.id().with("edge").with(edge);
+                show_tooltip_at_pointer(ui.ctx(), id, |ui| {
+                    let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
+                    ui.label(format!("{} sats", Sats(input.value)));
+                    ui.label(format!(
+                        "Address: {} ({})",
+                        input.address, input.address_type
+                    ));
+                });
+            }
 
             // Calculate attraction force and update velocity
             let diff = to_rect.left_center() - from_rect.right_center();

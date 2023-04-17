@@ -44,7 +44,7 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn draw(&self, ui: &egui::Ui, transform: &Transform) -> bool {
+    pub fn draw(&self, ui: &egui::Ui, transform: &Transform) -> EdgeResponse {
         let top = Cubic::sankey(self.from, self.to);
         let bot = Cubic::sankey(
             self.from + Vec2::new(0.0, self.from_height),
@@ -103,6 +103,10 @@ impl Edge {
 
         ui.painter().add(mesh);
 
-        hovering
+        EdgeResponse { hovering }
     }
+}
+
+pub struct EdgeResponse {
+    pub hovering: bool,
 }
