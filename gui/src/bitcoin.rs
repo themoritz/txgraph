@@ -20,6 +20,13 @@ impl Txid {
     pub fn to_hex_string(&self) -> String {
         self.0.encode_hex()
     }
+
+    pub fn chunks(&self) -> impl Iterator<Item = String> + '_ {
+        (0..16).map(|i| {
+            let x = &self.0[i..i + 2];
+            x.encode_hex()
+        })
+    }
 }
 
 impl Display for Txid {
@@ -144,11 +151,7 @@ impl Display for Sats {
             started = true;
 
             for amount in btc.iter().skip(1) {
-                if started {
-                    write!(f, ",{:03}", amount)?;
-                } else {
-                    write!(f, ",{}", amount)?;
-                }
+                write!(f, ",{:03}", amount)?;
             }
 
             write!(f, "'")?;

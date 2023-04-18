@@ -33,10 +33,6 @@ impl Transform {
         Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
     }
 
-    pub fn scale_font(&self, size: f32) -> f32 {
-        size * self.z
-    }
-
     pub fn translate(&mut self, vec: Vec2) {
         self.t_x += vec.x;
         self.t_y += vec.y;
@@ -46,5 +42,9 @@ impl Transform {
         self.z *= zoom_delta;
         self.t_x = zoom_delta * self.t_x + origin.x - zoom_delta * origin.x;
         self.t_y = zoom_delta * self.t_y + origin.y - zoom_delta * origin.y;
+    }
+
+    pub fn reset_zoom(&mut self, pos: Pos2) {
+        self.zoom(1.0 / self.z, pos);
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{CursorIcon, Frame, Pos2, Sense, TextEdit};
+use egui::{CursorIcon, Frame, Pos2, Sense, TextEdit, Vec2};
 
 use crate::{
     bitcoin::{Transaction, Txid},
@@ -202,7 +202,10 @@ impl eframe::App for App {
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
         ctx.request_repaint();
 
+        let mut ui_size = Vec2::ZERO;
+
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
+            ui_size = ui.available_size_before_wrap();
             if !self.transform_initialized {
                 self.transform
                     .translate(ui.available_size_before_wrap() / 2.0);
@@ -238,6 +241,9 @@ impl eframe::App for App {
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {
+            if ui.button("Reset Zoom").clicked() {
+                self.transform.reset_zoom((ui_size / 2.0).to_pos2());
+            }
             ui.collapsing("Layout", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Scale:");

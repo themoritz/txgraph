@@ -1,11 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    f32::consts::PI,
+};
 
-use egui::{show_tooltip_at_pointer, Color32, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
+use eframe::epaint::TextShape;
+use egui::{
+    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, FontId, Pos2, Rect, Rounding, Sense,
+    Stroke, TextFormat, Vec2,
+};
 
 use crate::{
     app::LayoutParams,
     bezier::Edge,
-    bitcoin::{Sats, Transaction, Txid},
+    bitcoin::{AmountComponents, Sats, Transaction, Txid},
     transform::Transform,
 };
 
@@ -209,7 +216,7 @@ impl DrawableGraph {
         remove_tx: impl Fn(Txid),
         layout_params: &LayoutParams,
     ) {
-        const TX_WIDTH: f32 = 20.0;
+        const TX_WIDTH: f32 = 36.0;
         const IO_WIDTH: f32 = 10.0;
         let scale2 = layout_params.scale * layout_params.scale;
 
@@ -242,12 +249,22 @@ impl DrawableGraph {
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
                 .on_hover_ui(|ui| {
-                    ui.label(format!("Tx: {}", txid));
-                    ui.label(format!("Total amount: {}", Sats(node.tx_value)));
-                    ui.label(format!(
-                        "Timestamp: {}, block: {}",
-                        node.tx_timestamp, node.block_height
-                    ));
+                    let mut job = LayoutJob::default();
+                    let font_id = FontId::monospace(10.0);
+                    let format = TextFormat {
+                        font_id: font_id.clone(),
+                        color: Color32::BLACK,
+                        ..Default::default()
+                    };
+                    txid_layout(&mut job, &txid, &font_id);
+                    newline(&mut job, &font_id);
+                    sats_layout(&mut job, &Sats(node.tx_value), &font_id);
+                    job.append(
+                        &format!("\n{}\nBlock {}", node.tx_timestamp, node.block_height),
+                        0.0,
+                        format.clone(),
+                    );
+                    ui.label(job);
                 });
 
             if response.dragged() {
@@ -264,6 +281,14 @@ impl DrawableGraph {
                 Color32::LIGHT_RED,
                 Stroke::new(1.0, Color32::BLACK),
             );
+
+            let tx_painter = painter.with_clip_rect(rect);
+            tx_painter.add(rotated_layout(
+                ui,
+                tx_content(&txid, &node.tx_timestamp, &Sats(node.tx_value)),
+                rect.right_top() + Vec2::new(-1.0, 2.0),
+                PI / 2.0,
+            ));
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
@@ -442,4 +467,176 @@ fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
     let x = (a.center().x - b.center().x).abs() - (b.width() + a.width()) / 2.0;
     let y = (a.center().y - b.center().y).abs() - (b.height() + a.height()) / 2.0;
     x.max(y).max(1.0)
+}
+
+pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> TextShape {
+    let galley = ui.fonts(|f| f.layout_job(job));
+    let mut shape = TextShape::new(pos, galley);
+    shape.angle = angle;
+    shape
+}
+
+fn tx_content(txid: &Txid, timestamp: &str, sats: &Sats) -> LayoutJob {
+    let mut job = LayoutJob::default();
+    let font_id = FontId::monospace(10.0);
+    txid_layout(&mut job, txid, &font_id);
+    newline(&mut job, &font_id);
+    job.append(
+        timestamp,
+        0.0,
+        TextFormat {
+            font_id: font_id.clone(),
+            color: Color32::BLACK,
+            ..Default::default()
+        },
+    );
+    newline(&mut job, &font_id);
+    sats_layout(&mut job, sats, &font_id);
+    job
+}
+
+fn newline(job: &mut LayoutJob, font_id: &FontId) {
+    job.append(
+        "\n",
+        0.0,
+        TextFormat {
+            font_id: font_id.clone(),
+            ..Default::default()
+        },
+    );
+}
+
+fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
+    let black_format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::BLACK,
+        ..Default::default()
+    };
+    let white_format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::from_gray(75),
+        ..Default::default()
+    };
+
+    let mut first = true;
+    let mut black = true;
+
+    for chunk in txid.chunks() {
+        job.append(
+            &chunk,
+            if first { 0.0 } else { 4.0 },
+            if black {
+                black_format.clone()
+            } else {
+                white_format.clone()
+            },
+        );
+        first = false;
+        black = !black;
+    }
+}
+
+fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
+    let black_format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::BLACK,
+        ..Default::default()
+    };
+    let white_format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::from_gray(128),
+        ..Default::default()
+    };
+
+    let AmountComponents {
+        sats,
+        ksats,
+        msats,
+        btc,
+    } = sats.components();
+
+    let mut started = false;
+
+    if btc.len() > 0 {
+        job.append(&format!("{}", btc[0]), 0.0, black_format.clone());
+        started = true;
+
+        for amount in btc.iter().skip(1) {
+            job.append(&format!("{:03}", amount), 4.0, black_format.clone());
+        }
+    } else {
+        job.append("0", 0.0, white_format.clone());
+    }
+
+    job.append(
+        ".",
+        0.0,
+        if started {
+            black_format.clone()
+        } else {
+            white_format.clone()
+        },
+    );
+
+    if started {
+        job.append(
+            &format!("{:02}", msats.unwrap_or(0)),
+            0.0,
+            black_format.clone(),
+        );
+    } else {
+        if let Some(m) = msats {
+            if m < 10 {
+                job.append("0", 0.0, white_format.clone());
+            }
+            job.append(&format!("{}", m), 0.0, black_format.clone());
+            started = true;
+        } else {
+            job.append("00", 0.0, white_format.clone());
+        }
+    }
+
+    job.append("", 4.0, white_format.clone());
+    if started {
+        job.append(
+            &format!("{:03}", ksats.unwrap_or(0)),
+            0.0,
+            black_format.clone(),
+        );
+    } else {
+        if let Some(k) = ksats {
+            if k < 10 {
+                job.append("00", 0.0, white_format.clone());
+            } else if k < 100 {
+                job.append("0", 0.0, white_format.clone());
+            }
+            job.append(&format!("{}", k), 0.0, black_format.clone());
+            started = true;
+        } else {
+            job.append("000", 0.0, white_format.clone());
+        }
+    }
+
+    job.append("", 4.0, white_format.clone());
+    if started {
+        job.append(&format!("{:03}", sats), 0.0, black_format.clone());
+    } else {
+        if sats < 10 {
+            job.append("00", 0.0, white_format.clone());
+        } else if sats < 100 {
+            job.append("0", 0.0, white_format.clone());
+        }
+        job.append(&format!("{}", sats), 0.0, black_format.clone());
+    }
+
+    job.append(
+        " sats",
+        0.0,
+        TextFormat {
+            color: Color32::BLACK,
+            font_id: FontId::monospace(font_id.size * 0.9),
+            valign: Align::Center,
+            ..Default::default()
+        },
+    );
 }
