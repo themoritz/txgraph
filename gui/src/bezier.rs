@@ -85,9 +85,9 @@ impl Edge {
         }
 
         let color = if hovering {
-            Color32::LIGHT_BLUE.gamma_multiply(0.8)
+            Color32::GOLD.gamma_multiply(0.8)
         } else {
-            Color32::LIGHT_BLUE.gamma_multiply(0.5)
+            Color32::GOLD.gamma_multiply(0.5)
         };
 
         let mut mesh = Mesh::default();

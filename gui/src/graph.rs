@@ -5,8 +5,8 @@ use std::{
 
 use eframe::epaint::TextShape;
 use egui::{
-    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, FontId, Pos2, Rect, Rounding, Sense,
-    Stroke, TextFormat, Vec2,
+    show_tooltip_at_pointer, text::LayoutJob, Color32, FontId, Pos2, Rect, Rounding, Sense,
+    Stroke, TextFormat, Vec2, RichText,
 };
 
 use crate::{
@@ -249,6 +249,7 @@ impl DrawableGraph {
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
                 .on_hover_ui(|ui| {
+                    ui.label(RichText::new("Transaction").heading().monospace());
                     let mut job = LayoutJob::default();
                     let font_id = FontId::monospace(10.0);
                     let format = TextFormat {
@@ -278,7 +279,7 @@ impl DrawableGraph {
             painter.rect(
                 rect,
                 Rounding::none(),
-                Color32::LIGHT_RED,
+                Color32::LIGHT_GREEN.gamma_multiply(0.8),
                 Stroke::new(1.0, Color32::BLACK),
             );
 
@@ -300,12 +301,23 @@ impl DrawableGraph {
                 let response = ui
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
-                        ui.label(format!("{} sats", Sats(input.value)));
+                        ui.label(RichText::new("Input").heading().monospace());
+                        let mut job = LayoutJob::default();
+                        let font_id = FontId::monospace(10.0);
+                        let format = TextFormat {
+                            font_id: font_id.clone(),
+                            color: Color32::BLACK,
+                            ..Default::default()
+                        };
+                        sats_layout(&mut job, &Sats(input.value), &font_id);
+                        newline(&mut job, &font_id);
+                        job.append("⏴", 0.0, format.clone());
+                        txid_layout(&mut job, &input.funding_txid, &font_id);
+                        ui.label(job);
                         ui.label(format!(
                             "Address: {} ({})",
                             input.address, input.address_type
                         ));
-                        ui.label(format!("Previous Tx: {}", input.funding_txid));
                     });
 
                 if response.clicked() {
@@ -316,9 +328,10 @@ impl DrawableGraph {
                     }
                 }
 
-                painter.rect_stroke(
+                painter.rect(
                     screen_rect,
                     Rounding::none(),
+                    Color32::WHITE.gamma_multiply(0.8),
                     ui.style().interact(&response).fg_stroke,
                 );
 
@@ -380,13 +393,13 @@ impl DrawableGraph {
                         OutputType::Utxo {
                             address: _,
                             address_type: _,
-                        } => Color32::GRAY,
+                        } => Color32::GRAY.gamma_multiply(0.8),
                         OutputType::Spent {
                             spending_txid: _,
                             address: _,
                             address_type: _,
-                        } => Color32::TRANSPARENT,
-                        OutputType::Fees => Color32::BLACK,
+                        } => Color32::WHITE.gamma_multiply(0.8),
+                        OutputType::Fees => Color32::BLACK.gamma_multiply(0.8),
                     },
                     ui.style().interact(&response).fg_stroke,
                 );
@@ -440,15 +453,7 @@ impl DrawableGraph {
             self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
 
             // Repulsion force between layers
-            let max_layer_repulsion = scale2 / 2.0;
-            let force = Vec2::new(
-                if diff.x <= 0.0 {
-                    max_layer_repulsion
-                } else {
-                    (scale2 / diff.x).min(max_layer_repulsion)
-                },
-                0.0,
-            );
+            let force = Vec2::new(scale2 / diff.x.max(2.0), 0.0);
             self.nodes.get_mut(&edge.source).unwrap().velocity -= force * layout_params.dt;
             self.nodes.get_mut(&edge.target).unwrap().velocity += force * layout_params.dt;
         }
@@ -466,7 +471,7 @@ impl DrawableGraph {
 fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
     let x = (a.center().x - b.center().x).abs() - (b.width() + a.width()) / 2.0;
     let y = (a.center().y - b.center().y).abs() - (b.height() + a.height()) / 2.0;
-    x.max(y).max(1.0)
+    x.max(y).max(2.0)
 }
 
 pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> TextShape {
@@ -481,8 +486,10 @@ fn tx_content(txid: &Txid, timestamp: &str, sats: &Sats) -> LayoutJob {
     let font_id = FontId::monospace(10.0);
     txid_layout(&mut job, txid, &font_id);
     newline(&mut job, &font_id);
+    sats_layout(&mut job, sats, &font_id);
+    newline(&mut job, &font_id);
     job.append(
-        timestamp,
+        &timestamp[2..],
         0.0,
         TextFormat {
             font_id: font_id.clone(),
@@ -490,8 +497,6 @@ fn tx_content(txid: &Txid, timestamp: &str, sats: &Sats) -> LayoutJob {
             ..Default::default()
         },
     );
-    newline(&mut job, &font_id);
-    sats_layout(&mut job, sats, &font_id);
     job
 }
 
@@ -506,6 +511,8 @@ fn newline(job: &mut LayoutJob, font_id: &FontId) {
     );
 }
 
+const SPACING: f32 = 3.0;
+
 fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
     let black_format = TextFormat {
         font_id: font_id.clone(),
@@ -514,7 +521,7 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
     };
     let white_format = TextFormat {
         font_id: font_id.clone(),
-        color: Color32::from_gray(75),
+        color: Color32::from_gray(128),
         ..Default::default()
     };
 
@@ -524,7 +531,7 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
     for chunk in txid.chunks() {
         job.append(
             &chunk,
-            if first { 0.0 } else { 4.0 },
+            if first { 0.0 } else { SPACING },
             if black {
                 black_format.clone()
             } else {
@@ -562,7 +569,7 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
         started = true;
 
         for amount in btc.iter().skip(1) {
-            job.append(&format!("{:03}", amount), 4.0, black_format.clone());
+            job.append(&format!("{:03}", amount), SPACING, black_format.clone());
         }
     } else {
         job.append("0", 0.0, white_format.clone());
@@ -596,7 +603,7 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
         }
     }
 
-    job.append("", 4.0, white_format.clone());
+    job.append("", SPACING, white_format.clone());
     if started {
         job.append(
             &format!("{:03}", ksats.unwrap_or(0)),
@@ -617,7 +624,7 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
         }
     }
 
-    job.append("", 4.0, white_format.clone());
+    job.append("", SPACING, white_format.clone());
     if started {
         job.append(&format!("{:03}", sats), 0.0, black_format.clone());
     } else {
@@ -629,14 +636,5 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
         job.append(&format!("{}", sats), 0.0, black_format.clone());
     }
 
-    job.append(
-        " sats",
-        0.0,
-        TextFormat {
-            color: Color32::BLACK,
-            font_id: FontId::monospace(font_id.size * 0.9),
-            valign: Align::Center,
-            ..Default::default()
-        },
-    );
+    job.append("sats", SPACING, black_format.clone());
 }
