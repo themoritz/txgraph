@@ -285,6 +285,7 @@ dependencies = [
  "egui",
  "ehttp",
  "hex",
+ "reunion",
  "serde",
  "serde_json",
  "tracing-subscriber",
@@ -1325,6 +1326,15 @@ dependencies = [
  "getrandom",
  "redox_syscall 0.2.16",
  "thiserror",
+]
+
+[[package]]
+name = "reunion"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a74e81d4c4423e57abc3b2fa56f266e208379a79105049156fd3ac24c8214d83"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

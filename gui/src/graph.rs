@@ -13,12 +13,14 @@ use crate::{
     app::LayoutParams,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
+    components::Components,
     transform::Transform,
 };
 
 pub struct DrawableGraph {
     nodes: HashMap<Txid, DrawableNode>,
     edges: Vec<DrawableEdge>,
+    components: Components,
 }
 
 pub struct DrawableNode {
@@ -77,13 +79,25 @@ impl DrawableGraph {
         Self {
             nodes: HashMap::new(),
             edges: Vec::new(),
+            components: Components::new(),
         }
+    }
+
+    fn add_edge(&mut self, edge: DrawableEdge) {
+        self.components.connect(edge.source, edge.target);
+        self.edges.push(edge);
     }
 
     pub fn remove_tx(&mut self, txid: Txid) {
         self.nodes.remove(&txid);
         self.edges
             .retain(|edge| edge.source != txid && edge.target != txid);
+
+        // Recreate connected components
+        self.components = Components::new();
+        for edge in &self.edges {
+            self.components.connect(edge.source, edge.target);
+        }
     }
 
     pub fn add_tx(&mut self, txid: Txid, tx: Transaction, pos: Pos2) {
@@ -178,7 +192,7 @@ impl DrawableGraph {
         // Add edges
         for (i, input) in tx.inputs.iter().enumerate() {
             if self.nodes.contains_key(&input.txid) {
-                self.edges.push(DrawableEdge {
+                self.add_edge(DrawableEdge {
                     source: input.txid,
                     source_pos: input.vout as usize,
                     target: txid,
@@ -197,7 +211,7 @@ impl DrawableGraph {
                         .find(|(_, inp)| inp.funding_txid == txid && inp.funding_vout as usize == o)
                         .unwrap()
                         .0;
-                    self.edges.push(DrawableEdge {
+                    self.add_edge(DrawableEdge {
                         source: txid,
                         source_pos: o,
                         target: spending_txid,
@@ -412,8 +426,7 @@ impl DrawableGraph {
                 output_rects.insert((*txid, o), rect);
             }
 
-            // Calculate repulsion force between txs and update velocity;
-            // TODO: Only nodes in the same connected component
+            // Calculate repulsion force between txs and update velocity
             for (other_txid, other_rect) in &rects {
                 if *other_txid == *txid {
                     continue;
@@ -423,7 +436,13 @@ impl DrawableGraph {
                 let spacing = clear_spacing(this_rect, other_rect);
                 let force =
                     -scale2 / spacing.powf(layout_params.tx_repulsion_dropoff) * diff.normalized();
-                node.velocity += force * layout_params.dt;
+
+                // Repulsion does not apply across connected components if the nodes aren't close to each other.
+                if self.components.connected(*txid, *other_txid)
+                    || spacing <= 0.5 * layout_params.scale
+                {
+                    node.velocity += force * layout_params.dt;
+                }
             }
         }
 
