@@ -5,14 +5,14 @@ use std::{
 
 use eframe::epaint::TextShape;
 use egui::{
-    show_tooltip_at_pointer, text::LayoutJob, Color32, FontId, Pos2, Rect, Rounding, Sense,
-    Stroke, TextFormat, Vec2, RichText,
+    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, FontId, Pos2, Rect, RichText,
+    Rounding, Sense, Stroke, TextFormat, Vec2,
 };
 
 use crate::{
     app::LayoutParams,
     bezier::Edge,
-    bitcoin::{AmountComponents, Sats, Transaction, Txid},
+    bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     transform::Transform,
 };
 
@@ -47,7 +47,7 @@ pub struct DrawableInput {
     bot: f32,
     value: u64,
     address: String,
-    address_type: String,
+    address_type: AddressType,
     funding_txid: Txid, // TODO: coinbase tx?
     funding_vout: u32,
 }
@@ -62,12 +62,12 @@ pub struct DrawableOutput {
 pub enum OutputType {
     Utxo {
         address: String,
-        address_type: String,
+        address_type: AddressType,
     },
     Spent {
         spending_txid: Txid,
         address: String,
-        address_type: String,
+        address_type: AddressType,
     },
     Fees,
 }
@@ -116,7 +116,7 @@ impl DrawableGraph {
                     bot,
                     value: i.value,
                     address: i.address.clone(),
-                    address_type: i.address_type.clone(),
+                    address_type: i.address_type,
                     funding_txid: i.txid,
                     funding_vout: i.vout,
                 }
@@ -138,12 +138,12 @@ impl DrawableGraph {
                     output_type: match o.spending_txid {
                         None => OutputType::Utxo {
                             address: o.address.clone(),
-                            address_type: o.address_type.clone(),
+                            address_type: o.address_type,
                         },
                         Some(txid) => OutputType::Spent {
                             spending_txid: txid,
                             address: o.address.clone(),
-                            address_type: o.address_type.clone(),
+                            address_type: o.address_type,
                         },
                     },
                 }
@@ -220,6 +220,13 @@ impl DrawableGraph {
         const IO_WIDTH: f32 = 10.0;
         let scale2 = layout_params.scale * layout_params.scale;
 
+        let font_id = FontId::monospace(10.0);
+        let format = TextFormat {
+            font_id: font_id.clone(),
+            color: Color32::BLACK,
+            ..Default::default()
+        };
+
         let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0 + 5.0, 0.0);
 
         let painter = ui.painter();
@@ -251,17 +258,12 @@ impl DrawableGraph {
                 .on_hover_ui(|ui| {
                     ui.label(RichText::new("Transaction").heading().monospace());
                     let mut job = LayoutJob::default();
-                    let font_id = FontId::monospace(10.0);
-                    let format = TextFormat {
-                        font_id: font_id.clone(),
-                        color: Color32::BLACK,
-                        ..Default::default()
-                    };
                     txid_layout(&mut job, &txid, &font_id);
                     newline(&mut job, &font_id);
+                    newline(&mut job, &FontId::monospace(5.0));
                     sats_layout(&mut job, &Sats(node.tx_value), &font_id);
                     job.append(
-                        &format!("\n{}\nBlock {}", node.tx_timestamp, node.block_height),
+                        &format!("\n{} (block {})", node.tx_timestamp, node.block_height),
                         0.0,
                         format.clone(),
                     );
@@ -301,23 +303,15 @@ impl DrawableGraph {
                 let response = ui
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
-                        ui.label(RichText::new("Input").heading().monospace());
+                        ui.label(RichText::new("⏴Input").heading().monospace());
                         let mut job = LayoutJob::default();
-                        let font_id = FontId::monospace(10.0);
-                        let format = TextFormat {
-                            font_id: font_id.clone(),
-                            color: Color32::BLACK,
-                            ..Default::default()
-                        };
                         sats_layout(&mut job, &Sats(input.value), &font_id);
                         newline(&mut job, &font_id);
-                        job.append("⏴", 0.0, format.clone());
+                        address_layout(&mut job, &input.address, input.address_type, &font_id);
+                        newline(&mut job, &font_id);
+                        newline(&mut job, &FontId::monospace(5.0));
                         txid_layout(&mut job, &input.funding_txid, &font_id);
                         ui.label(job);
-                        ui.label(format!(
-                            "Address: {} ({})",
-                            input.address, input.address_type
-                        ));
                     });
 
                 if response.clicked() {
@@ -347,27 +341,38 @@ impl DrawableGraph {
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
                     .interact(screen_rect, id.with(o), Sense::click())
-                    .on_hover_ui(|ui| {
-                        ui.label(format!("{} sats", Sats(output.value)));
-                        match &output.output_type {
-                            OutputType::Utxo {
-                                address,
-                                address_type,
-                            } => {
-                                ui.label(format!("Address: {} ({})", address, address_type));
-                                ui.label("UTXO!".to_string());
-                            }
-                            OutputType::Spent {
-                                spending_txid,
-                                address,
-                                address_type,
-                            } => {
-                                ui.label(format!("Address: {} ({})", address, address_type));
-                                ui.label(format!("Spending Tx: {}", spending_txid));
-                            }
-                            OutputType::Fees => {
-                                ui.label("Fees!".to_string());
-                            }
+                    .on_hover_ui(|ui| match &output.output_type {
+                        OutputType::Utxo {
+                            address,
+                            address_type,
+                        } => {
+                            ui.label(RichText::new("Unspent Output").heading().monospace());
+                            let mut job = LayoutJob::default();
+                            sats_layout(&mut job, &Sats(output.value), &font_id);
+                            newline(&mut job, &font_id);
+                            address_layout(&mut job, &address, *address_type, &font_id);
+                            ui.label(job);
+                        }
+                        OutputType::Spent {
+                            spending_txid,
+                            address,
+                            address_type,
+                        } => {
+                            ui.label(RichText::new("Output⏵").heading().monospace());
+                            let mut job = LayoutJob::default();
+                            sats_layout(&mut job, &Sats(output.value), &font_id);
+                            newline(&mut job, &font_id);
+                            address_layout(&mut job, &address, *address_type, &font_id);
+                            newline(&mut job, &font_id);
+                            newline(&mut job, &FontId::monospace(5.0));
+                            txid_layout(&mut job, &spending_txid, &font_id);
+                            ui.label(job);
+                        }
+                        OutputType::Fees => {
+                            ui.label(RichText::new("Fees").heading().monospace());
+                            let mut job = LayoutJob::default();
+                            sats_layout(&mut job, &Sats(output.value), &font_id);
+                            ui.label(job);
                         }
                     });
 
@@ -437,11 +442,11 @@ impl DrawableGraph {
                 let id = ui.id().with("edge").with(edge);
                 show_tooltip_at_pointer(ui.ctx(), id, |ui| {
                     let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
-                    ui.label(format!("{} sats", Sats(input.value)));
-                    ui.label(format!(
-                        "Address: {} ({})",
-                        input.address, input.address_type
-                    ));
+                    let mut job = LayoutJob::default();
+                    sats_layout(&mut job, &Sats(input.value), &font_id);
+                    newline(&mut job, &font_id);
+                    address_layout(&mut job, &input.address, input.address_type, &font_id);
+                    ui.label(job);
                 });
             }
 
@@ -637,4 +642,64 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
     }
 
     job.append("sats", SPACING, black_format.clone());
+}
+
+fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType, font_id: &FontId) {
+    let black_format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::BLACK,
+        ..Default::default()
+    };
+    let white_format = TextFormat {
+        color: Color32::from_gray(128),
+        ..black_format.clone()
+    };
+    let highlight_format = TextFormat {
+        color: Color32::BLUE,
+        ..black_format.clone()
+    };
+    let mut small = font_id.clone();
+    small.size *= 0.7;
+    let type_format = TextFormat {
+        font_id: small,
+        valign: Align::Center,
+        ..black_format.clone()
+    };
+
+    let highlight = match address_type {
+        AddressType::P2TR => 4,   // "bc1p"
+        AddressType::P2PKH => 1,  // "1"
+        AddressType::P2SH => 1,   // "3"
+        AddressType::P2WPKH => 4, // "bc1q"
+        AddressType::P2WSH => 4,  // "bc1q"
+    };
+
+    job.append(&address[0..highlight], 0.0, highlight_format);
+    job.append(&address[highlight..4], 0.0, black_format.clone());
+
+    let mut black = false;
+    for i in 1..=(address.len() / 4) {
+        let from = i * 4;
+        let to = (i * 4 + 4).min(address.len());
+        job.append(
+            &address[from..to],
+            SPACING,
+            if black {
+                black_format.clone()
+            } else {
+                white_format.clone()
+            },
+        );
+        black = !black;
+    }
+
+    let type_ = match address_type {
+        AddressType::P2PKH => "p2pkh",
+        AddressType::P2SH => "p2sh",
+        AddressType::P2WPKH => "p2wpkh",
+        AddressType::P2WSH => "p2wsh",
+        AddressType::P2TR => "p2tr",
+    };
+
+    job.append(&format!(" ({})", type_), 0.0, type_format);
 }

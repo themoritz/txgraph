@@ -69,7 +69,17 @@ pub struct Input {
     pub vout: u32,
     pub value: u64,
     pub address: String,
-    pub address_type: String,
+    pub address_type: AddressType,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AddressType {
+    P2PKH,
+    P2SH,
+    P2WPKH,
+    P2WSH,
+    P2TR,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -77,7 +87,7 @@ pub struct Output {
     pub spending_txid: Option<Txid>,
     pub value: u64,
     pub address: String,
-    pub address_type: String,
+    pub address_type: AddressType,
 }
 
 impl Transaction {
@@ -202,20 +212,20 @@ pub fn dummy_transactions() -> HashMap<Txid, Transaction> {
                     txid: z,
                     vout: 0,
                     address: "fslkfjeslk".to_string(),
-                    address_type: "p2pkh".to_string(),
+                    address_type: AddressType::P2PKH,
                 }],
                 outputs: vec![
                     Output {
                         spending_txid: Some(b),
                         value: 100_230_000,
                         address: "fsklefj".to_string(),
-                        address_type: "p2pkh".to_string(),
+                        address_type: AddressType::P2PKH,
                     },
                     Output {
                         spending_txid: Some(c),
                         value: 12_300_000,
                         address: "fsklefj".to_string(),
-                        address_type: "p2pkh".to_string(),
+                        address_type: AddressType::P2PKH,
                     },
                 ],
             },
@@ -231,13 +241,13 @@ pub fn dummy_transactions() -> HashMap<Txid, Transaction> {
                     txid: a,
                     vout: 0,
                     address: "fslkfjeslk".to_string(),
-                    address_type: "p2pkh".to_string(),
+                    address_type: AddressType::P2PKH,
                 }],
                 outputs: vec![Output {
                     spending_txid: Some(c),
                     value: 12_300_000,
                     address: "fsklefj".to_string(),
-                    address_type: "p2pkh".to_string(),
+                    address_type: AddressType::P2PKH,
                 }],
             },
         ),
@@ -253,14 +263,14 @@ pub fn dummy_transactions() -> HashMap<Txid, Transaction> {
                         txid: a,
                         vout: 1,
                         address: "fslkfjeslk".to_string(),
-                        address_type: "p2pkh".to_string(),
+                        address_type: AddressType::P2PKH,
                     },
                     Input {
                         value: 12_300_000,
                         txid: b,
                         vout: 0,
                         address: "fslkfjeslk".to_string(),
-                        address_type: "p2pkh".to_string(),
+                        address_type: AddressType::P2PKH,
                     },
                 ],
                 outputs: vec![],
