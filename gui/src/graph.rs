@@ -284,6 +284,10 @@ impl DrawableGraph {
                     ui.label(job);
                 });
 
+            if response.clicked() {
+                ui.output_mut(|o| o.copied_text = txid.to_hex_string());
+            }
+
             if response.dragged() {
                 node.dragged = true;
                 node.velocity = Vec2::ZERO;
@@ -457,7 +461,9 @@ impl DrawableGraph {
                 to_height: to_rect.height(),
             };
 
-            if flow.draw(&ui, &transform).hovering {
+            let response = flow.draw(&ui, &transform);
+
+            if response.hovering {
                 let id = ui.id().with("edge").with(edge);
                 show_tooltip_at_pointer(ui.ctx(), id, |ui| {
                     let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
@@ -466,6 +472,14 @@ impl DrawableGraph {
                     newline(&mut job, &font_id);
                     address_layout(&mut job, &input.address, input.address_type, &font_id);
                     ui.label(job);
+                });
+            }
+
+            if response.clicked {
+                ui.output_mut(|o| {
+                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
+                        .address
+                        .clone()
                 });
             }
 

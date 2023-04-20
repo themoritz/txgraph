@@ -65,6 +65,7 @@ impl Edge {
 
         let pointer = ui.ctx().pointer_latest_pos();
         let mut hovering = false;
+        let mut clicked = false;
         if let Some(p) = pointer {
             for n in 1..=steps {
                 // Assuming that top and bot have the same x coords.
@@ -78,6 +79,7 @@ impl Edge {
                         && (br.y - bl.y) * (p.x - bl.x) - (br.x - bl.x) * (p.y - bl.y) >= 0.0
                     {
                         hovering = true;
+                        clicked = ui.input(|i| i.pointer.primary_clicked());
                         break;
                     }
                 }
@@ -103,10 +105,11 @@ impl Edge {
 
         ui.painter().add(mesh);
 
-        EdgeResponse { hovering }
+        EdgeResponse { hovering, clicked }
     }
 }
 
 pub struct EdgeResponse {
     pub hovering: bool,
+    pub clicked: bool,
 }
