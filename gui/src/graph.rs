@@ -5,8 +5,8 @@ use std::{
 
 use eframe::epaint::TextShape;
 use egui::{
-    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, FontId, Pos2, Rect, RichText,
-    Rounding, Sense, Stroke, TextFormat, Vec2,
+    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId, Pos2, Rect,
+    RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ use crate::{
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
-    style,
+    style::{self, TX_STROKE_WIDTH},
     transform::Transform,
 };
 
@@ -298,10 +298,15 @@ impl DrawableGraph {
                 ui.output_mut(|o| o.copied_text = txid.hex_string());
             }
 
+            if response.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::Grab);
+            }
+
             if response.dragged() {
                 node.dragged = true;
                 node.velocity = Vec2::ZERO;
                 node.pos += transform.vec_from_screen(response.drag_delta());
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::Grabbing);
             } else {
                 node.dragged = false;
             }
@@ -310,7 +315,7 @@ impl DrawableGraph {
                 rect,
                 Rounding::none(),
                 style::BLUE.gamma_multiply(0.2),
-                Stroke::new(1.0, Color32::BLACK),
+                Stroke::new(style::TX_STROKE_WIDTH, Color32::BLACK),
             );
 
             let tx_painter = painter.with_clip_rect(rect);
@@ -350,11 +355,13 @@ impl DrawableGraph {
                     }
                 }
 
+                let mut stroke = ui.style().interact(&response).fg_stroke;
+                stroke.width *= style::TX_STROKE_WIDTH;
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
-                    Color32::WHITE.gamma_multiply(0.8),
-                    ui.style().interact(&response).fg_stroke,
+                    Color32::WHITE.gamma_multiply(0.5),
+                    stroke,
                 );
 
                 input_rects.insert((*txid, i), rect);
@@ -422,6 +429,15 @@ impl DrawableGraph {
                     }
                 }
 
+                let mut stroke = match output.output_type {
+                    OutputType::Spent {
+                        spending_txid: _,
+                        address: _,
+                        address_type: _,
+                    } => ui.style().interact(&response).fg_stroke,
+                    _ => Stroke::new(1.0, Color32::BLACK),
+                };
+                stroke.width *= style::TX_STROKE_WIDTH;
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
@@ -437,7 +453,7 @@ impl DrawableGraph {
                         } => Color32::WHITE.gamma_multiply(0.8),
                         OutputType::Fees => Color32::BLACK.gamma_multiply(0.8),
                     },
-                    ui.style().interact(&response).fg_stroke,
+                    stroke,
                 );
 
                 output_rects.insert((*txid, o), rect);
