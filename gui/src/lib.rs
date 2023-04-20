@@ -3,8 +3,8 @@
 mod app;
 mod bezier;
 mod bitcoin;
-mod style;
 mod components;
 mod graph;
+mod style;
 mod transform;
 pub use app::App;

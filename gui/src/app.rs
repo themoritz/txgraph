@@ -72,11 +72,27 @@ impl App {
         cc.egui_ctx.set_visuals(egui::Visuals::light());
 
         let mut fonts = egui::FontDefinitions::empty();
-        fonts.font_data.insert("btc".to_owned(), egui::FontData::from_static(include_bytes!("./fonts/btc.ttf")));
-        fonts.font_data.insert("iosevka".to_owned(), egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.ttf")));
-        fonts.families.insert(egui::FontFamily::Name("btc".into()), vec!["btc".to_owned()]);
-        fonts.families.entry(egui::FontFamily::Monospace).or_default().insert(0, "iosevka".to_owned());
-        fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "iosevka".to_owned());
+        fonts.font_data.insert(
+            "btc".to_owned(),
+            egui::FontData::from_static(include_bytes!("./fonts/btc.ttf")),
+        );
+        fonts.font_data.insert(
+            "iosevka".to_owned(),
+            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.ttf")),
+        );
+        fonts
+            .families
+            .insert(egui::FontFamily::Name("btc".into()), vec!["btc".to_owned()]);
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .insert(0, "iosevka".to_owned());
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "iosevka".to_owned());
         cc.egui_ctx.set_fonts(fonts);
 
         // Load previous app state (if any).

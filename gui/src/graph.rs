@@ -14,8 +14,8 @@ use crate::{
     app::LayoutParams,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
-    style,
     components::Components,
+    style,
     transform::Transform,
 };
 
@@ -261,7 +261,10 @@ impl DrawableGraph {
             .map(|(t, n)| {
                 (
                     *t,
-                    Rect::from_center_size(n.pos, Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, n.height)),
+                    Rect::from_center_size(
+                        n.pos,
+                        Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, n.height),
+                    ),
                 )
             })
             .collect();
@@ -361,7 +364,10 @@ impl DrawableGraph {
             for (o, output) in node.outputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
                     Pos2::new(top_left.x + style::TX_WIDTH, top_left.y + output.top),
-                    Pos2::new(top_left.x + style::TX_WIDTH + style::IO_WIDTH, top_left.y + output.bot),
+                    Pos2::new(
+                        top_left.x + style::TX_WIDTH + style::IO_WIDTH,
+                        top_left.y + output.bot,
+                    ),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
@@ -590,7 +596,11 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
 
 fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
     let btc_font = FontId::new(font_id.size, egui::FontFamily::Name("btc".into()));
-    let btc_format = TextFormat { font_id: btc_font, color: style::BTC, ..Default::default() };
+    let btc_format = TextFormat {
+        font_id: btc_font,
+        color: style::BTC,
+        ..Default::default()
+    };
     job.append("\u{E9A8}", 0.0, btc_format);
 
     let black_format = TextFormat {
