@@ -139,7 +139,7 @@ impl eframe::App for App {
                     Ok(response) => {
                         if response.status == 200 {
                             if let Some(text) = response.text() {
-                                match serde_json::from_str(&text) {
+                                match serde_json::from_str(text) {
                                     Ok(tx) => {
                                         sender.send(Update::AddTx { txid, tx, pos }).unwrap();
                                     }
@@ -167,11 +167,7 @@ impl eframe::App for App {
                         }
                     }
                     Err(err) => {
-                        sender
-                            .send(Update::Error {
-                                err: err.to_string(),
-                            })
-                            .unwrap();
+                        sender.send(Update::Error { err }).unwrap();
                     }
                 }
                 ctx.request_repaint();
@@ -265,7 +261,9 @@ impl eframe::App for App {
                         if ui.button("Go").clicked() {
                             load_tx(
                                 txid,
-                                self.store.transform.from_screen((ui_size / 2.0).to_pos2()),
+                                self.store
+                                    .transform
+                                    .pos_from_screen((ui_size / 2.0).to_pos2()),
                             );
                         }
                     }

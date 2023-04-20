@@ -18,11 +18,11 @@ impl Default for Transform {
 }
 
 impl Transform {
-    pub fn to_screen(&self, pos: Pos2) -> Pos2 {
+    pub fn pos_to_screen(&self, pos: Pos2) -> Pos2 {
         Pos2::new(self.z * pos.x + self.t_x, self.z * pos.y + self.t_y)
     }
 
-    pub fn from_screen(&self, pos: Pos2) -> Pos2 {
+    pub fn pos_from_screen(&self, pos: Pos2) -> Pos2 {
         Pos2::new((pos.x - self.t_x) / self.z, (pos.y - self.t_y) / self.z)
     }
 
@@ -35,7 +35,7 @@ impl Transform {
     }
 
     pub fn rect_to_screen(&self, rect: Rect) -> Rect {
-        Rect::from_min_max(self.to_screen(rect.min), self.to_screen(rect.max))
+        Rect::from_min_max(self.pos_to_screen(rect.min), self.pos_to_screen(rect.max))
     }
 
     pub fn translate(&mut self, vec: Vec2) {

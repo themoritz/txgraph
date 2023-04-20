@@ -17,7 +17,7 @@ impl Txid {
         }
     }
 
-    pub fn to_hex_string(&self) -> String {
+    pub fn hex_string(&self) -> String {
         self.0.encode_hex()
     }
 
@@ -31,7 +31,7 @@ impl Txid {
 
 impl Display for Txid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_hex_string())
+        write!(f, "{}", self.hex_string())
     }
 }
 
@@ -50,7 +50,7 @@ impl<'de> Deserialize<'de> for Txid {
 
 impl Serialize for Txid {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_hex_string())
+        serializer.serialize_str(&self.hex_string())
     }
 }
 
@@ -118,10 +118,10 @@ impl Sats {
         let btc = self.0 / 1_00_000_000;
         let mut rem = self.0 % 1_00_000_000;
         let msats0 = rem / 1_000_000;
-        rem = rem % 1_000_000;
+        rem %= 1_000_000;
         let msats = if msats0 > 0 { Some(msats0) } else { None };
         let ksats0 = rem / 1_000;
-        rem = rem % 1_000;
+        rem %= 1_000;
         let ksats = if ksats0 > 0 { Some(ksats0) } else { None };
         let sats = rem;
 
@@ -130,7 +130,7 @@ impl Sats {
 
         while btc_to_go > 0 {
             rem = btc_to_go % 1_000;
-            btc_to_go = btc_to_go / 1_000;
+            btc_to_go /= 1_000;
             vec.push(rem);
         }
 
@@ -156,7 +156,7 @@ impl Display for Sats {
 
         let mut started = false;
 
-        if btc.len() > 0 {
+        if !btc.is_empty() {
             write!(f, "{}", btc[0])?;
             started = true;
 
@@ -169,20 +169,16 @@ impl Display for Sats {
 
         if started {
             write!(f, "{:02},", msats.unwrap_or(0))?;
-        } else {
-            if let Some(m) = msats {
-                write!(f, "{},", m)?;
-                started = true;
-            }
+        } else if let Some(m) = msats {
+            write!(f, "{},", m)?;
+            started = true;
         }
 
         if started {
             write!(f, "{:03},", ksats.unwrap_or(0))?;
-        } else {
-            if let Some(k) = ksats {
-                write!(f, "{},", k)?;
-                started = true
-            }
+        } else if let Some(k) = ksats {
+            write!(f, "{},", k)?;
+            started = true
         }
 
         if started {
@@ -304,7 +300,7 @@ mod tests {
         assert_eq!(
             Txid::new("afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382")
                 .unwrap()
-                .to_hex_string(),
+                .hex_string(),
             "afe8d3199cd68f973a7cba01cb6b59f733864b782e9be49f61bb7f3d928a8382"
         );
     }

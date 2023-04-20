@@ -280,7 +280,7 @@ impl DrawableGraph {
                 .on_hover_ui(|ui| {
                     ui.label(RichText::new("Transaction").heading().monospace());
                     let mut job = LayoutJob::default();
-                    txid_layout(&mut job, &txid, &font_id);
+                    txid_layout(&mut job, txid, &font_id);
                     newline(&mut job, &font_id);
                     newline(&mut job, &FontId::monospace(5.0));
                     sats_layout(&mut job, &Sats(node.tx_value), &font_id);
@@ -293,7 +293,7 @@ impl DrawableGraph {
                 });
 
             if response.clicked() {
-                ui.output_mut(|o| o.copied_text = txid.to_hex_string());
+                ui.output_mut(|o| o.copied_text = txid.hex_string());
             }
 
             if response.dragged() {
@@ -314,7 +314,7 @@ impl DrawableGraph {
             let tx_painter = painter.with_clip_rect(rect);
             tx_painter.add(rotated_layout(
                 ui,
-                tx_content(&txid, &node.tx_timestamp, &Sats(node.tx_value)),
+                tx_content(txid, &node.tx_timestamp, &Sats(node.tx_value)),
                 rect.right_top() + Vec2::new(-1.0, 2.0),
                 PI / 2.0,
             ));
@@ -376,7 +376,7 @@ impl DrawableGraph {
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
-                            address_layout(&mut job, &address, *address_type, &font_id);
+                            address_layout(&mut job, address, *address_type, &font_id);
                             ui.label(job);
                         }
                         OutputType::Spent {
@@ -388,10 +388,10 @@ impl DrawableGraph {
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
-                            address_layout(&mut job, &address, *address_type, &font_id);
+                            address_layout(&mut job, address, *address_type, &font_id);
                             newline(&mut job, &font_id);
                             newline(&mut job, &FontId::monospace(5.0));
-                            txid_layout(&mut job, &spending_txid, &font_id);
+                            txid_layout(&mut job, spending_txid, &font_id);
                             ui.label(job);
                         }
                         OutputType::Fees => {
@@ -469,7 +469,7 @@ impl DrawableGraph {
                 to_height: to_rect.height(),
             };
 
-            let response = flow.draw(&ui, &transform);
+            let response = flow.draw(ui, transform);
 
             if response.hovering {
                 let id = ui.id().with("edge").with(edge);
@@ -505,7 +505,7 @@ impl DrawableGraph {
         }
 
         // Update positions
-        for (_txid, node) in &mut self.nodes {
+        for node in self.nodes.values_mut() {
             node.velocity *= layout_params.cooloff;
             if !node.dragged {
                 node.pos += node.velocity * layout_params.dt;
@@ -610,7 +610,7 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
 
     let mut started = false;
 
-    if btc.len() > 0 {
+    if !btc.is_empty() {
         job.append(&format!("{}", btc[0]), 0.0, black_format.clone());
         started = true;
 
@@ -637,16 +637,14 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
             0.0,
             black_format.clone(),
         );
-    } else {
-        if let Some(m) = msats {
-            if m < 10 {
-                job.append("0", 0.0, white_format.clone());
-            }
-            job.append(&format!("{}", m), 0.0, black_format.clone());
-            started = true;
-        } else {
-            job.append("00", 0.0, white_format.clone());
+    } else if let Some(m) = msats {
+        if m < 10 {
+            job.append("0", 0.0, white_format.clone());
         }
+        job.append(&format!("{}", m), 0.0, black_format.clone());
+        started = true;
+    } else {
+        job.append("00", 0.0, white_format.clone());
     }
 
     job.append("", SPACING, white_format.clone());
@@ -656,18 +654,16 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
             0.0,
             black_format.clone(),
         );
-    } else {
-        if let Some(k) = ksats {
-            if k < 10 {
-                job.append("00", 0.0, white_format.clone());
-            } else if k < 100 {
-                job.append("0", 0.0, white_format.clone());
-            }
-            job.append(&format!("{}", k), 0.0, black_format.clone());
-            started = true;
-        } else {
-            job.append("000", 0.0, white_format.clone());
+    } else if let Some(k) = ksats {
+        if k < 10 {
+            job.append("00", 0.0, white_format.clone());
+        } else if k < 100 {
+            job.append("0", 0.0, white_format.clone());
         }
+        job.append(&format!("{}", k), 0.0, black_format.clone());
+        started = true;
+    } else {
+        job.append("000", 0.0, white_format.clone());
     }
 
     job.append("", SPACING, white_format.clone());
@@ -675,14 +671,14 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
         job.append(&format!("{:03}", sats), 0.0, black_format.clone());
     } else {
         if sats < 10 {
-            job.append("00", 0.0, white_format.clone());
+            job.append("00", 0.0, white_format);
         } else if sats < 100 {
-            job.append("0", 0.0, white_format.clone());
+            job.append("0", 0.0, white_format);
         }
         job.append(&format!("{}", sats), 0.0, black_format.clone());
     }
 
-    job.append("sats", SPACING, black_format.clone());
+    job.append("sats", SPACING, black_format);
 }
 
 fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType, font_id: &FontId) {
@@ -704,7 +700,7 @@ fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType,
     let type_format = TextFormat {
         font_id: small,
         valign: Align::Center,
-        ..black_format.clone()
+        ..black_format
     };
 
     let highlight = match address_type {

@@ -59,8 +59,8 @@ impl Edge {
 
         for n in 0..=steps {
             let t = n as f32 / steps as f32;
-            tops.push(transform.to_screen(top.eval(t)));
-            bots.push(transform.to_screen(bot.eval(t)));
+            tops.push(transform.pos_to_screen(top.eval(t)));
+            bots.push(transform.pos_to_screen(bot.eval(t)));
         }
 
         let pointer = ui.ctx().pointer_latest_pos();
