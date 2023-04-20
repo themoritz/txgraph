@@ -15,7 +15,7 @@ use crate::{
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
-    style::{self, TX_STROKE_WIDTH},
+    style,
     transform::Transform,
 };
 
@@ -239,44 +239,97 @@ impl DrawableGraph {
         remove_tx: impl Fn(Txid),
         layout_params: &LayoutParams,
     ) {
-        let scale2 = layout_params.scale * layout_params.scale;
+        // PREPARE RECTS //
+
+        let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
+        let mut output_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
+        let mut inner_rects: HashMap<Txid, Rect> = HashMap::new();
+        let mut outer_rects: HashMap<Txid, Rect> = HashMap::new();
+
+        for (txid, node) in &self.nodes {
+            let outer_rect = Rect::from_center_size(
+                node.pos,
+                Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, node.height),
+            );
+            let inner_rect =
+                Rect::from_center_size(node.pos, Vec2::new(style::TX_WIDTH, node.height));
+
+            outer_rects.insert(*txid, outer_rect);
+            inner_rects.insert(*txid, inner_rect);
+
+            let left_top = outer_rect.left_top();
+            for (i, input) in node.inputs.iter().enumerate() {
+                let rect = Rect::from_min_max(
+                    Pos2::new(left_top.x, left_top.y + input.top),
+                    Pos2::new(left_top.x + style::IO_WIDTH, left_top.y + input.bot),
+                );
+                input_rects.insert((*txid, i), rect);
+            }
+
+            let right_top = outer_rect.right_top();
+            for (o, output) in node.outputs.iter().enumerate() {
+                let rect = Rect::from_min_max(
+                    Pos2::new(right_top.x - style::IO_WIDTH, right_top.y + output.top),
+                    Pos2::new(right_top.x, right_top.y + output.bot),
+                );
+                output_rects.insert((*txid, o), rect);
+            }
+        }
+
+        // LAYOUT DEFS //
 
         let font_id = FontId::monospace(10.0);
+
         let format = TextFormat {
             font_id: font_id.clone(),
             color: Color32::BLACK,
             ..Default::default()
         };
 
+        // DRAW EDGES //
+
+        for edge in &self.edges {
+            let from_rect = output_rects.get(&(edge.source, edge.source_pos)).unwrap();
+            let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
+
+            let flow = Edge {
+                from: from_rect.right_top(),
+                from_height: from_rect.height(),
+                to: to_rect.left_top(),
+                to_height: to_rect.height(),
+            };
+
+            let response = flow.draw(ui, transform);
+
+            if response.hovering {
+                let id = ui.id().with("edge").with(edge);
+                show_tooltip_at_pointer(ui.ctx(), id, |ui| {
+                    let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
+                    let mut job = LayoutJob::default();
+                    sats_layout(&mut job, &Sats(input.value), &font_id);
+                    newline(&mut job, &font_id);
+                    address_layout(&mut job, &input.address, input.address_type, &font_id);
+                    ui.label(job);
+                });
+            }
+
+            if response.clicked {
+                ui.output_mut(|o| {
+                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
+                        .address
+                        .clone()
+                });
+            }
+        }
+
+        // DRAW NODES //
+
         let initial_dist = Vec2::new(style::IO_WIDTH + style::TX_WIDTH / 2.0 + 5.0, 0.0);
-
         let painter = ui.painter();
-
-        let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
-        let mut output_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
-
-        let rects: HashMap<Txid, Rect> = self
-            .nodes
-            .iter()
-            .map(|(t, n)| {
-                (
-                    *t,
-                    Rect::from_center_size(
-                        n.pos,
-                        Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, n.height),
-                    ),
-                )
-            })
-            .collect();
-
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
-            let top_left = node.pos - Vec2::new(style::TX_WIDTH / 2.0, node.height / 2.0);
-            let rect = transform.rect_to_screen(Rect::from_min_size(
-                top_left,
-                Vec2::new(style::TX_WIDTH, node.height),
-            ));
+            let rect = transform.rect_to_screen(*inner_rects.get(txid).unwrap());
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
                 .on_hover_ui(|ui| {
@@ -328,10 +381,7 @@ impl DrawableGraph {
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
-                let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x - style::IO_WIDTH, top_left.y + input.top),
-                    Pos2::new(top_left.x, top_left.y + input.bot),
-                );
+                let rect = *input_rects.get(&(*txid, i)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
                     .interact(screen_rect, id.with(i), Sense::click())
@@ -363,19 +413,11 @@ impl DrawableGraph {
                     Color32::WHITE.gamma_multiply(0.5),
                     stroke,
                 );
-
-                input_rects.insert((*txid, i), rect);
             }
 
             let id = ui.id().with("o").with(txid);
             for (o, output) in node.outputs.iter().enumerate() {
-                let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x + style::TX_WIDTH, top_left.y + output.top),
-                    Pos2::new(
-                        top_left.x + style::TX_WIDTH + style::IO_WIDTH,
-                        top_left.y + output.bot,
-                    ),
-                );
+                let rect = *output_rects.get(&(*txid, o)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
                     .interact(screen_rect, id.with(o), Sense::click())
@@ -455,18 +497,20 @@ impl DrawableGraph {
                     },
                     stroke,
                 );
-
-                output_rects.insert((*txid, o), rect);
             }
+        }
 
-            // Calculate repulsion force between txs and update velocity
-            for (other_txid, other_rect) in &rects {
+        // CALCULATE FORCES AND UPDATE VELOCITY //
+
+        let scale2 = layout_params.scale * layout_params.scale;
+
+        for (txid, rect) in &outer_rects {
+            for (other_txid, other_rect) in &outer_rects {
                 if *other_txid == *txid {
                     continue;
                 }
-                let this_rect = rects.get(txid).unwrap();
-                let diff = other_rect.center() - this_rect.center();
-                let spacing = clear_spacing(this_rect, other_rect);
+                let diff = other_rect.center() - rect.center();
+                let spacing = clear_spacing(rect, other_rect);
                 let force =
                     -scale2 / spacing.powf(layout_params.tx_repulsion_dropoff) * diff.normalized();
 
@@ -474,7 +518,7 @@ impl DrawableGraph {
                 if self.components.connected(*txid, *other_txid)
                     || spacing <= 0.5 * layout_params.scale
                 {
-                    node.velocity += force * layout_params.dt;
+                    self.nodes.get_mut(txid).unwrap().velocity += force * layout_params.dt;
                 }
             }
         }
@@ -483,36 +527,6 @@ impl DrawableGraph {
             let from_rect = output_rects.get(&(edge.source, edge.source_pos)).unwrap();
             let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
 
-            let flow = Edge {
-                from: from_rect.right_top(),
-                from_height: from_rect.height(),
-                to: to_rect.left_top(),
-                to_height: to_rect.height(),
-            };
-
-            let response = flow.draw(ui, transform);
-
-            if response.hovering {
-                let id = ui.id().with("edge").with(edge);
-                show_tooltip_at_pointer(ui.ctx(), id, |ui| {
-                    let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
-                    let mut job = LayoutJob::default();
-                    sats_layout(&mut job, &Sats(input.value), &font_id);
-                    newline(&mut job, &font_id);
-                    address_layout(&mut job, &input.address, input.address_type, &font_id);
-                    ui.label(job);
-                });
-            }
-
-            if response.clicked {
-                ui.output_mut(|o| {
-                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
-                        .address
-                        .clone()
-                });
-            }
-
-            // Calculate attraction force and update velocity
             let diff = to_rect.left_center() - from_rect.right_center();
             let mut force = diff.length_sq() / layout_params.scale * diff.normalized();
             force.y *= layout_params.y_compress;
@@ -525,7 +539,8 @@ impl DrawableGraph {
             self.nodes.get_mut(&edge.target).unwrap().velocity += force * layout_params.dt;
         }
 
-        // Update positions
+        // UPDATE POSITIONS //
+
         for node in self.nodes.values_mut() {
             node.velocity *= layout_params.cooloff;
             if !node.dragged {
