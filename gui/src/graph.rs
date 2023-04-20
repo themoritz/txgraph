@@ -14,6 +14,7 @@ use crate::{
     app::LayoutParams,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
+    style,
     components::Components,
     transform::Transform,
 };
@@ -238,8 +239,6 @@ impl DrawableGraph {
         remove_tx: impl Fn(Txid),
         layout_params: &LayoutParams,
     ) {
-        const TX_WIDTH: f32 = 36.0;
-        const IO_WIDTH: f32 = 10.0;
         let scale2 = layout_params.scale * layout_params.scale;
 
         let font_id = FontId::monospace(10.0);
@@ -249,7 +248,7 @@ impl DrawableGraph {
             ..Default::default()
         };
 
-        let initial_dist = Vec2::new(IO_WIDTH + TX_WIDTH / 2.0 + 5.0, 0.0);
+        let initial_dist = Vec2::new(style::IO_WIDTH + style::TX_WIDTH / 2.0 + 5.0, 0.0);
 
         let painter = ui.painter();
 
@@ -262,7 +261,7 @@ impl DrawableGraph {
             .map(|(t, n)| {
                 (
                     *t,
-                    Rect::from_center_size(n.pos, Vec2::new(TX_WIDTH + 2.0 * IO_WIDTH, n.height)),
+                    Rect::from_center_size(n.pos, Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, n.height)),
                 )
             })
             .collect();
@@ -270,10 +269,10 @@ impl DrawableGraph {
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
-            let top_left = node.pos - Vec2::new(TX_WIDTH / 2.0, node.height / 2.0);
+            let top_left = node.pos - Vec2::new(style::TX_WIDTH / 2.0, node.height / 2.0);
             let rect = transform.rect_to_screen(Rect::from_min_size(
                 top_left,
-                Vec2::new(TX_WIDTH, node.height),
+                Vec2::new(style::TX_WIDTH, node.height),
             ));
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
@@ -307,7 +306,7 @@ impl DrawableGraph {
             painter.rect(
                 rect,
                 Rounding::none(),
-                Color32::LIGHT_GREEN.gamma_multiply(0.8),
+                style::BLUE.gamma_multiply(0.2),
                 Stroke::new(1.0, Color32::BLACK),
             );
 
@@ -322,7 +321,7 @@ impl DrawableGraph {
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x - IO_WIDTH, top_left.y + input.top),
+                    Pos2::new(top_left.x - style::IO_WIDTH, top_left.y + input.top),
                     Pos2::new(top_left.x, top_left.y + input.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
@@ -361,8 +360,8 @@ impl DrawableGraph {
             let id = ui.id().with("o").with(txid);
             for (o, output) in node.outputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(top_left.x + TX_WIDTH, top_left.y + output.top),
-                    Pos2::new(top_left.x + TX_WIDTH + IO_WIDTH, top_left.y + output.bot),
+                    Pos2::new(top_left.x + style::TX_WIDTH, top_left.y + output.top),
+                    Pos2::new(top_left.x + style::TX_WIDTH + style::IO_WIDTH, top_left.y + output.bot),
                 );
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
@@ -590,6 +589,10 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
 }
 
 fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
+    let btc_font = FontId::new(font_id.size, egui::FontFamily::Name("btc".into()));
+    let btc_format = TextFormat { font_id: btc_font, color: style::BTC, ..Default::default() };
+    job.append("\u{E9A8}", 0.0, btc_format);
+
     let black_format = TextFormat {
         font_id: font_id.clone(),
         color: Color32::BLACK,
@@ -611,14 +614,14 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
     let mut started = false;
 
     if !btc.is_empty() {
-        job.append(&format!("{}", btc[0]), 0.0, black_format.clone());
+        job.append(&format!("{}", btc[0]), SPACING, black_format.clone());
         started = true;
 
         for amount in btc.iter().skip(1) {
             job.append(&format!("{:03}", amount), SPACING, black_format.clone());
         }
     } else {
-        job.append("0", 0.0, white_format.clone());
+        job.append("0", SPACING, white_format.clone());
     }
 
     job.append(
@@ -692,7 +695,7 @@ fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType,
         ..black_format.clone()
     };
     let highlight_format = TextFormat {
-        color: Color32::BLUE,
+        color: style::BLUE,
         ..black_format.clone()
     };
     let mut small = font_id.clone();

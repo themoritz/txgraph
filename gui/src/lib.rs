@@ -3,6 +3,7 @@
 mod app;
 mod bezier;
 mod bitcoin;
+mod style;
 mod components;
 mod graph;
 mod transform;

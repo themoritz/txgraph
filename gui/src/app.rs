@@ -71,7 +71,14 @@ impl App {
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
         cc.egui_ctx.set_visuals(egui::Visuals::light());
 
-        // crate::bitcoin::get().unwrap();
+        let mut fonts = egui::FontDefinitions::empty();
+        fonts.font_data.insert("btc".to_owned(), egui::FontData::from_static(include_bytes!("./fonts/btc.ttf")));
+        fonts.font_data.insert("iosevka".to_owned(), egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.ttf")));
+        fonts.families.insert(egui::FontFamily::Name("btc".into()), vec!["btc".to_owned()]);
+        fonts.families.entry(egui::FontFamily::Monospace).or_default().insert(0, "iosevka".to_owned());
+        fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "iosevka".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
+
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         let store = if let Some(storage) = cc.storage {
@@ -211,9 +218,15 @@ impl eframe::App for App {
         });
 
         egui::Window::new("Controls").show(ctx, |ui| {
-            if ui.button("Reset Zoom").clicked() {
-                self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
-            }
+            ui.horizontal(|ui| {
+                if ui.button("Reset Zoom").clicked() {
+                    self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
+                }
+                if ui.button("Clear").clicked() {
+                    self.store.graph = DrawableGraph::default();
+                }
+            });
+
             ui.collapsing("Layout", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Scale:");
