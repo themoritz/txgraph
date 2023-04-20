@@ -8,6 +8,7 @@ use egui::{
     show_tooltip_at_pointer, text::LayoutJob, Align, Color32, FontId, Pos2, Rect, RichText,
     Rounding, Sense, Stroke, TextFormat, Vec2,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     app::LayoutParams,
@@ -17,12 +18,14 @@ use crate::{
     transform::Transform,
 };
 
+#[derive(Serialize, Deserialize)]
 pub struct DrawableGraph {
     nodes: HashMap<Txid, DrawableNode>,
     edges: Vec<DrawableEdge>,
     components: Components,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct DrawableNode {
     /// Center of tx rect.
     pos: Pos2,
@@ -36,7 +39,7 @@ pub struct DrawableNode {
     outputs: Vec<DrawableOutput>,
 }
 
-#[derive(Clone, Hash)]
+#[derive(Clone, Hash, Serialize, Deserialize)]
 pub struct DrawableEdge {
     source: Txid,
     source_pos: usize,
@@ -44,6 +47,7 @@ pub struct DrawableEdge {
     target_pos: usize,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct DrawableInput {
     top: f32,
     bot: f32,
@@ -54,6 +58,7 @@ pub struct DrawableInput {
     funding_vout: u32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct DrawableOutput {
     top: f32,
     bot: f32,
@@ -61,6 +66,7 @@ pub struct DrawableOutput {
     output_type: OutputType,
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum OutputType {
     Utxo {
         address: String,
@@ -74,15 +80,17 @@ pub enum OutputType {
     Fees,
 }
 
-impl DrawableGraph {
-    pub fn empty() -> Self {
+impl Default for DrawableGraph {
+    fn default() -> Self {
         Self {
             nodes: HashMap::new(),
             edges: Vec::new(),
             components: Components::new(),
         }
     }
+}
 
+impl DrawableGraph {
     fn add_edge(&mut self, edge: DrawableEdge) {
         self.components.connect(edge.source, edge.target);
         self.edges.push(edge);
@@ -259,7 +267,7 @@ impl DrawableGraph {
             })
             .collect();
 
-        let txids: HashSet<Txid> = self.nodes.keys().map(|t| *t).collect();
+        let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
             let top_left = node.pos - Vec2::new(TX_WIDTH / 2.0, node.height / 2.0);

@@ -1,5 +1,6 @@
 use egui::{Pos2, Rect, Vec2};
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Transform {
     pub z: f32,
     pub t_x: f32,
@@ -19,6 +20,10 @@ impl Default for Transform {
 impl Transform {
     pub fn to_screen(&self, pos: Pos2) -> Pos2 {
         Pos2::new(self.z * pos.x + self.t_x, self.z * pos.y + self.t_y)
+    }
+
+    pub fn from_screen(&self, pos: Pos2) -> Pos2 {
+        Pos2::new((pos.x - self.t_x) / self.z, (pos.y - self.t_y) / self.z)
     }
 
     pub fn vec_to_screen(&self, vec: Vec2) -> Vec2 {

@@ -9,20 +9,13 @@ use crate::{
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     tx: String,
     layout_params: LayoutParams,
-}
-
-impl Default for AppStore {
-    fn default() -> Self {
-        Self {
-            tx: String::new(),
-            layout_params: LayoutParams::default(),
-        }
-    }
+    graph: DrawableGraph,
+    transform: Transform,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -47,12 +40,6 @@ impl Default for LayoutParams {
     }
 }
 
-pub struct AppState {
-    graph: DrawableGraph,
-    err: Option<String>,
-    loading: bool,
-}
-
 pub enum Update {
     AddTx {
         txid: Txid,
@@ -69,29 +56,12 @@ pub enum Update {
     },
 }
 
-impl AppState {
-    pub fn apply_update(&mut self, update: Update) {
-        match update {
-            Update::AddTx { txid, tx, pos } => {
-                self.graph.add_tx(txid, tx, pos);
-            }
-            Update::RemoveTx { txid } => {
-                self.graph.remove_tx(txid);
-            }
-            Update::Loading => self.loading = true,
-            Update::LoadingDone => self.loading = false,
-            Update::Error { err } => self.err = Some(err),
-        }
-    }
-}
-
 pub struct App {
     store: AppStore,
-    state: AppState,
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
-    transform_initialized: bool,
-    transform: Transform,
+    err: Option<String>,
+    loading: bool,
 }
 
 impl App {
@@ -114,15 +84,24 @@ impl App {
 
         App {
             store,
-            state: AppState {
-                graph: DrawableGraph::empty(),
-                err: None,
-                loading: false,
-            },
             update_sender,
             update_receiver,
-            transform_initialized: false,
-            transform: Transform::default(),
+            err: None,
+            loading: false,
+        }
+    }
+
+    pub fn apply_update(&mut self, update: Update) {
+        match update {
+            Update::AddTx { txid, tx, pos } => {
+                self.store.graph.add_tx(txid, tx, pos);
+            }
+            Update::RemoveTx { txid } => {
+                self.store.graph.remove_tx(txid);
+            }
+            Update::Loading => self.loading = true,
+            Update::LoadingDone => self.loading = false,
+            Update::Error { err } => self.err = Some(err),
         }
     }
 }
@@ -135,7 +114,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         loop {
             match self.update_receiver.try_recv() {
-                Ok(update) => self.state.apply_update(update),
+                Ok(update) => self.apply_update(update),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
             }
@@ -206,11 +185,6 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             ui_size = ui.available_size_before_wrap();
-            if !self.transform_initialized {
-                self.transform
-                    .translate(ui.available_size_before_wrap() / 2.0);
-                self.transform_initialized = true;
-            }
 
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
@@ -221,19 +195,19 @@ impl eframe::App for App {
             if let Some(hover_pos) = response.hover_pos() {
                 let zoom_delta = ui.input(|i| i.zoom_delta());
                 if zoom_delta != 1.0 {
-                    self.transform.zoom(zoom_delta, hover_pos);
+                    self.store.transform.zoom(zoom_delta, hover_pos);
                 }
             }
 
             // Drag
             if response.dragged_by(egui::PointerButton::Primary) {
                 response = response.on_hover_cursor(CursorIcon::Grabbing);
-                self.transform.translate(response.drag_delta());
+                self.store.transform.translate(response.drag_delta());
             }
 
-            self.state.graph.draw(
+            self.store.graph.draw(
                 ui,
-                &self.transform,
+                &self.store.transform,
                 load_tx,
                 remove_tx,
                 &self.store.layout_params,
@@ -242,7 +216,7 @@ impl eframe::App for App {
 
         egui::Window::new("Controls").show(ctx, |ui| {
             if ui.button("Reset Zoom").clicked() {
-                self.transform.reset_zoom((ui_size / 2.0).to_pos2());
+                self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
             }
             ui.collapsing("Layout", |ui| {
                 ui.horizontal(|ui| {
@@ -289,7 +263,10 @@ impl eframe::App for App {
                 match Txid::new(&self.store.tx) {
                     Ok(txid) => {
                         if ui.button("Go").clicked() {
-                            load_tx(txid, Pos2::new(0.0, 0.0));
+                            load_tx(
+                                txid,
+                                self.store.transform.from_screen((ui_size / 2.0).to_pos2()),
+                            );
                         }
                     }
                     Err(e) => {
@@ -299,14 +276,14 @@ impl eframe::App for App {
             });
 
             ui.horizontal(|ui| {
-                if self.state.loading {
+                if self.loading {
                     ui.spinner();
                 }
 
-                if let Some(err) = &self.state.err {
+                if let Some(err) = &self.err {
                     ui.label(format!("Error: {}", err));
                     if ui.button("Ok").clicked() {
-                        self.state.err = None;
+                        self.err = None;
                     }
                 }
             });

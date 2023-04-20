@@ -1,7 +1,9 @@
 use reunion::{UnionFind, UnionFindTrait};
+use serde::{Deserialize, Serialize};
 
 use crate::bitcoin::Txid;
 
+#[derive(Serialize, Deserialize)]
 pub struct Components {
     sets: UnionFind<Txid>,
 }
