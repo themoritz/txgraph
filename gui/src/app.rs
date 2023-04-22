@@ -1,10 +1,11 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{CursorIcon, Frame, Grid, LayerId, Pos2, Sense, TextEdit, TextStyle, Vec2};
 
 use crate::{
+    annotations::Annotations,
     bitcoin::{Transaction, Txid},
-    graph::DrawableGraph,
+    graph::Graph,
     transform::Transform,
 };
 
@@ -14,8 +15,9 @@ use crate::{
 pub struct AppStore {
     tx: String,
     layout_params: LayoutParams,
-    graph: DrawableGraph,
+    graph: Graph,
     transform: Transform,
+    annotations: Annotations,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -158,6 +160,7 @@ impl eframe::App for App {
 
             ehttp::fetch(request, move |response| {
                 sender.send(Update::LoadingDone).unwrap();
+                let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
                 match response {
                     Ok(response) => {
                         if response.status == 200 {
@@ -167,30 +170,18 @@ impl eframe::App for App {
                                         sender.send(Update::AddTx { txid, tx, pos }).unwrap();
                                     }
                                     Err(err) => {
-                                        sender
-                                            .send(Update::Error {
-                                                err: err.to_string(),
-                                            })
-                                            .unwrap();
+                                        error(err.to_string());
                                     }
                                 }
                             } else {
-                                sender
-                                    .send(Update::Error {
-                                        err: "No text body response".to_string(),
-                                    })
-                                    .unwrap();
+                                error("No text body response".to_string());
                             }
                         } else {
-                            sender
-                                .send(Update::Error {
-                                    err: response.text().map_or("".to_string(), |t| t.to_owned()),
-                                })
-                                .unwrap();
+                            error(response.text().map_or("".to_string(), |t| t.to_owned()));
                         }
                     }
                     Err(err) => {
-                        sender.send(Update::Error { err }).unwrap();
+                        error(err);
                     }
                 }
                 ctx.request_repaint();
@@ -230,6 +221,7 @@ impl eframe::App for App {
                 load_tx,
                 remove_tx,
                 &self.store.layout_params,
+                &mut self.store.annotations,
             );
         });
 
@@ -238,8 +230,11 @@ impl eframe::App for App {
                 if ui.button("Reset Zoom").clicked() {
                     self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
                 }
-                if ui.button("Clear").clicked() {
-                    self.store.graph = DrawableGraph::default();
+                if ui.button("Clear Graph").clicked() {
+                    self.store.graph = Graph::default();
+                }
+                if ui.button("Clear Annotations").clicked() {
+                    self.store.annotations = Annotations::default();
                 }
             });
 
@@ -322,6 +317,15 @@ impl eframe::App for App {
                     }
                 }
             });
+
+            ui.collapsing("Annocations", |ui| {
+                self.store.annotations.ui(
+                    &self.store.graph,
+                    &ctx.layer_painter(LayerId::debug()),
+                    &self.store.transform,
+                    ui,
+                );
+            })
         });
     }
 }

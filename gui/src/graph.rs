@@ -11,6 +11,7 @@ use egui::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    annotations::Annotations,
     app::LayoutParams,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
@@ -20,7 +21,7 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub struct DrawableGraph {
+pub struct Graph {
     nodes: HashMap<Txid, DrawableNode>,
     edges: Vec<DrawableEdge>,
     components: Components,
@@ -81,7 +82,7 @@ pub enum OutputType {
     Fees,
 }
 
-impl Default for DrawableGraph {
+impl Default for Graph {
     fn default() -> Self {
         Self {
             nodes: HashMap::new(),
@@ -91,7 +92,11 @@ impl Default for DrawableGraph {
     }
 }
 
-impl DrawableGraph {
+impl Graph {
+    pub fn get_tx_pos(&self, txid: Txid) -> Option<Pos2> {
+        self.nodes.get(&txid).map(|n| n.pos)
+    }
+
     fn add_edge(&mut self, edge: DrawableEdge) {
         self.components.connect(edge.source, edge.target);
         self.edges.push(edge);
@@ -238,6 +243,7 @@ impl DrawableGraph {
         load_tx: impl Fn(Txid, Pos2),
         remove_tx: impl Fn(Txid),
         layout_params: &LayoutParams,
+        annotations: &mut Annotations,
     ) {
         // PREPARE RECTS //
 
@@ -329,6 +335,7 @@ impl DrawableGraph {
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
+            let label = annotations.tx_label(*txid);
             let rect = transform.rect_to_screen(*inner_rects.get(txid).unwrap());
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
@@ -337,6 +344,10 @@ impl DrawableGraph {
                     let mut job = LayoutJob::default();
                     txid_layout(&mut job, txid, &font_id);
                     newline(&mut job, &font_id);
+                    if let Some(label) = label.clone() {
+                        job.append(&format!("[{}]", label), 0.0, format.clone());
+                        newline(&mut job, &font_id);
+                    }
                     newline(&mut job, &FontId::monospace(5.0));
                     sats_layout(&mut job, &Sats(node.tx_value), &font_id);
                     job.append(
@@ -348,6 +359,10 @@ impl DrawableGraph {
                 });
 
             if response.clicked() {
+                annotations.open_tx(*txid);
+            }
+
+            if response.double_clicked() {
                 ui.output_mut(|o| o.copied_text = txid.hex_string());
             }
 
@@ -367,14 +382,14 @@ impl DrawableGraph {
             painter.rect(
                 rect,
                 Rounding::none(),
-                style::BLUE.gamma_multiply(0.2),
+                annotations.tx_color(*txid).gamma_multiply(0.2),
                 Stroke::new(style::TX_STROKE_WIDTH, Color32::BLACK),
             );
 
             let tx_painter = painter.with_clip_rect(rect);
             tx_painter.add(rotated_layout(
                 ui,
-                tx_content(txid, &node.tx_timestamp, &Sats(node.tx_value)),
+                tx_content(txid, &label, &node.tx_timestamp, &Sats(node.tx_value)),
                 rect.right_top() + Vec2::new(-1.0, 2.0),
                 PI / 2.0,
             ));
@@ -563,22 +578,24 @@ pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> T
     shape
 }
 
-fn tx_content(txid: &Txid, timestamp: &str, sats: &Sats) -> LayoutJob {
+fn tx_content(txid: &Txid, label: &Option<String>, timestamp: &str, sats: &Sats) -> LayoutJob {
     let mut job = LayoutJob::default();
     let font_id = FontId::monospace(10.0);
-    txid_layout(&mut job, txid, &font_id);
+    let format = TextFormat {
+        font_id: font_id.clone(),
+        color: Color32::BLACK,
+        ..Default::default()
+    };
+
+    if let Some(label) = label {
+        job.append(label, 0.0, format.clone());
+    } else {
+        txid_layout(&mut job, txid, &font_id);
+    }
     newline(&mut job, &font_id);
     sats_layout(&mut job, sats, &font_id);
     newline(&mut job, &font_id);
-    job.append(
-        &timestamp[2..],
-        0.0,
-        TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::BLACK,
-            ..Default::default()
-        },
-    );
+    job.append(&timestamp[2..], 0.0, format);
     job
 }
 
