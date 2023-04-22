@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{CursorIcon, Frame, Pos2, Sense, TextEdit, Vec2};
+use egui::{CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
 
 use crate::{
     bitcoin::{Transaction, Txid},
@@ -244,62 +244,70 @@ impl eframe::App for App {
             });
 
             ui.collapsing("Layout", |ui| {
-                ui.horizontal(|ui| {
+                Grid::new("Layout").num_columns(2).show(ui, |ui| {
                     ui.label("Scale:");
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.scale,
                         5.0..=200.0,
                     ));
-                });
-                ui.horizontal(|ui| {
+                    ui.end_row();
+
                     ui.label("Y Compress:");
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.y_compress,
                         1.0..=5.0,
                     ));
-                });
-                ui.horizontal(|ui| {
+                    ui.end_row();
+
                     ui.label("Tx repulsion factor:");
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.tx_repulsion_dropoff,
                         0.5..=2.0,
                     ));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("dt:");
+                    ui.end_row();
+
+                    ui.label("Speed:");
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.dt,
                         0.001..=0.2,
                     ));
-                });
-                ui.horizontal(|ui| {
+                    ui.end_row();
+
                     ui.label("Cooloff:");
                     ui.add(egui::Slider::new(
                         &mut self.store.layout_params.cooloff,
                         0.5..=0.99,
                     ));
+                    ui.end_row();
                 });
             });
 
-            ui.horizontal(|ui| {
-                ui.label("Load Tx");
-                ui.add(TextEdit::singleline(&mut self.store.tx));
+            ui.add_space(5.0);
 
-                match Txid::new(&self.store.tx) {
-                    Ok(txid) => {
-                        if ui.button("Go").clicked() {
-                            load_tx(
-                                txid,
-                                self.store
-                                    .transform
-                                    .pos_from_screen((ui_size / 2.0).to_pos2()),
-                            );
+            ui.collapsing("Load Transaction", |ui| {
+                ui.horizontal(|ui| {
+                    let glyph_width =
+                        ui.fonts(|f| f.glyph_width(&TextStyle::Body.resolve(ui.style()), '0'));
+                    ui.add(
+                        TextEdit::singleline(&mut self.store.tx).desired_width(glyph_width * 63.5),
+                    );
+
+                    match Txid::new(&self.store.tx) {
+                        Ok(txid) => {
+                            if ui.button("Go").clicked() {
+                                load_tx(
+                                    txid,
+                                    self.store
+                                        .transform
+                                        .pos_from_screen((ui_size / 2.0).to_pos2()),
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            ui.label(e);
                         }
                     }
-                    Err(e) => {
-                        ui.label(e);
-                    }
-                }
+                });
             });
 
             ui.horizontal(|ui| {

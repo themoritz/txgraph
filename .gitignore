@@ -2,3 +2,5 @@
 /gui/dist
 /server/target
 /server/txs.db
+*.pem
+.DS_Store
