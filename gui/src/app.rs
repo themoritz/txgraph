@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{CursorIcon, Frame, Grid, LayerId, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
 
 use crate::{
     annotations::Annotations,
@@ -317,15 +317,6 @@ impl eframe::App for App {
                     }
                 }
             });
-
-            ui.collapsing("Annocations", |ui| {
-                self.store.annotations.ui(
-                    &self.store.graph,
-                    &ctx.layer_painter(LayerId::debug()),
-                    &self.store.transform,
-                    ui,
-                );
-            })
         });
     }
 }

@@ -93,10 +93,6 @@ impl Default for Graph {
 }
 
 impl Graph {
-    pub fn get_tx_pos(&self, txid: Txid) -> Option<Pos2> {
-        self.nodes.get(&txid).map(|n| n.pos)
-    }
-
     fn add_edge(&mut self, edge: DrawableEdge) {
         self.components.connect(edge.source, edge.target);
         self.edges.push(edge);
@@ -356,13 +352,10 @@ impl Graph {
                         format.clone(),
                     );
                     ui.label(job);
-                });
+                })
+                .context_menu(|ui| annotations.tx_menu(*txid, ui));
 
             if response.clicked() {
-                annotations.open_tx(*txid);
-            }
-
-            if response.double_clicked() {
                 ui.output_mut(|o| o.copied_text = txid.hex_string());
             }
 
