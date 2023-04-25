@@ -44,7 +44,7 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn draw(&self, ui: &egui::Ui, transform: &Transform) -> EdgeResponse {
+    pub fn draw(&self, ui: &egui::Ui, color: Color32, transform: &Transform) -> EdgeResponse {
         let top = Cubic::sankey(self.from, self.to);
         let bot = Cubic::sankey(
             self.from + Vec2::new(0.0, self.from_height),
@@ -87,9 +87,9 @@ impl Edge {
         }
 
         let color = if hovering {
-            Color32::GOLD.gamma_multiply(0.8)
+            color.gamma_multiply(0.5)
         } else {
-            Color32::GOLD.gamma_multiply(0.5)
+            color.gamma_multiply(0.4)
         };
 
         let mut mesh = Mesh::default();

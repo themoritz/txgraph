@@ -294,18 +294,24 @@ impl Graph {
             let from_rect = output_rects.get(&(edge.source, edge.source_pos)).unwrap();
             let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
 
+            let coin = (edge.source, edge.source_pos);
+            let color = annotations.coin_color(coin).unwrap_or(Color32::GOLD);
+
             let flow = Edge {
                 from: from_rect.right_top(),
                 from_height: from_rect.height(),
                 to: to_rect.left_top(),
                 to_height: to_rect.height(),
             };
+            let response = flow.draw(ui, color, transform);
 
-            let response = flow.draw(ui, transform);
-
+            // TODO: Context menu for coin?
             if response.hovering {
                 let id = ui.id().with("edge").with(edge);
                 show_tooltip_at_pointer(ui.ctx(), id, |ui| {
+                    if let Some(label) = annotations.coin_label(coin) {
+                        ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
+                    }
                     let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
                     let mut job = LayoutJob::default();
                     sats_layout(&mut job, &Sats(input.value), &font_id);
@@ -389,12 +395,18 @@ impl Graph {
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
+                let coin = (input.funding_txid, input.funding_vout as usize);
+
                 let rect = *input_rects.get(&(*txid, i)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
                     .interact(screen_rect, id.with(i), Sense::click())
                     .on_hover_ui(|ui| {
-                        ui.label(RichText::new("⏴Input").heading().monospace());
+                        let label = match annotations.coin_label(coin) {
+                            Some(l) => format!(" [{}]", l),
+                            None => "".to_string()
+                        };
+                        ui.label(RichText::new(format!("⏴Input{}", label)).heading().monospace());
                         let mut job = LayoutJob::default();
                         sats_layout(&mut job, &Sats(input.value), &font_id);
                         newline(&mut job, &font_id);
@@ -403,7 +415,8 @@ impl Graph {
                         newline(&mut job, &FontId::monospace(5.0));
                         txid_layout(&mut job, &input.funding_txid, &font_id);
                         ui.label(job);
-                    });
+                    })
+                    .context_menu(|ui| annotations.coin_menu(coin, ui));
 
                 if response.clicked() {
                     if txids.contains(&input.funding_txid) {
@@ -418,23 +431,29 @@ impl Graph {
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
-                    Color32::WHITE.gamma_multiply(0.5),
+                    annotations.coin_color(coin).unwrap_or(Color32::WHITE).gamma_multiply(0.4),
                     stroke,
                 );
             }
 
             let id = ui.id().with("o").with(txid);
             for (o, output) in node.outputs.iter().enumerate() {
+                let coin = (*txid, o);
+
                 let rect = *output_rects.get(&(*txid, o)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
-                let response = ui
+                let mut response = ui
                     .interact(screen_rect, id.with(o), Sense::click())
                     .on_hover_ui(|ui| match &output.output_type {
                         OutputType::Utxo {
                             address,
                             address_type,
                         } => {
-                            ui.label(RichText::new("Unspent Output").heading().monospace());
+                            let label = match annotations.coin_label(coin) {
+                                Some(l) => format!(" [{}]", l),
+                                None => "".to_string()
+                            };
+                            ui.label(RichText::new(format!("Unspent Output{}", label)).heading().monospace());
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
@@ -446,7 +465,11 @@ impl Graph {
                             address,
                             address_type,
                         } => {
-                            ui.label(RichText::new("Output⏵").heading().monospace());
+                            let label = match annotations.coin_label(coin) {
+                                Some(l) => format!(" [{}]", l),
+                                None => "".to_string()
+                            };
+                            ui.label(RichText::new(format!("Output⏵{}", label)).heading().monospace());
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
@@ -463,6 +486,14 @@ impl Graph {
                             ui.label(job);
                         }
                     });
+
+                match output.output_type {
+                    OutputType::Fees => {},
+                    _ => {
+                        response = response
+                            .context_menu(|ui| annotations.coin_menu(coin, ui));
+                    }
+                }
 
                 if let OutputType::Spent {
                     spending_txid,
@@ -495,12 +526,12 @@ impl Graph {
                         OutputType::Utxo {
                             address: _,
                             address_type: _,
-                        } => Color32::GRAY.gamma_multiply(0.8),
+                        } => annotations.coin_color(coin).unwrap_or(Color32::GRAY).gamma_multiply(0.4),
                         OutputType::Spent {
                             spending_txid: _,
                             address: _,
                             address_type: _,
-                        } => Color32::WHITE.gamma_multiply(0.8),
+                        } => annotations.coin_color(coin).unwrap_or(Color32::WHITE).gamma_multiply(0.4),
                         OutputType::Fees => Color32::BLACK.gamma_multiply(0.8),
                     },
                     stroke,
