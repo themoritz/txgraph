@@ -23,7 +23,7 @@ impl Txid {
 
     pub fn chunks(&self) -> impl Iterator<Item = String> + '_ {
         (0..16).map(|i| {
-            let x = &self.0[2 * i .. 2 * (i + 1)];
+            let x = &self.0[2 * i..2 * (i + 1)];
             x.encode_hex()
         })
     }

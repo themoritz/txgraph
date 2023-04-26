@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     f32::consts::PI,
+    fmt::Write,
 };
 
 use eframe::epaint::TextShape;
@@ -39,6 +40,53 @@ pub struct DrawableNode {
     block_height: u32,
     inputs: Vec<DrawableInput>,
     outputs: Vec<DrawableOutput>,
+}
+
+impl DrawableNode {
+    fn export_beancount(&self, txid: &Txid, label: Option<String>) -> String {
+        let mut s = String::new();
+        writeln!(
+            s,
+            "{} * \"{}\" ^{}",
+            &self.tx_timestamp[0..10],
+            label.unwrap_or("".to_string()),
+            txid.hex_string()
+        )
+        .unwrap();
+        for input in &self.inputs {
+            writeln!(
+                s,
+                "  Assets:Bitcoin:{:<72} {:>20.8} BTC",
+                input.address,
+                -(input.value as f64) / 100_000_000.0
+            )
+            .unwrap();
+        }
+        for output in &self.outputs {
+            let account = match &output.output_type {
+                OutputType::Fees => format!("Expenses:Bitcoin:Fees{:66}", " "),
+                OutputType::Spent {
+                    spending_txid: _,
+                    address,
+                    address_type: _,
+                } => format!("Assets:Bitcoin:{:<72}", address),
+                OutputType::Utxo {
+                    address,
+                    address_type: _,
+                } => format!("Assets:Bitcoin:{:<72}", address),
+            };
+            if output.value > 0 {
+                writeln!(
+                    s,
+                    "  {} {:>20.8} BTC",
+                    account,
+                    (output.value as f64) / 100_000_000.0
+                )
+                .unwrap();
+            }
+        }
+        s
+    }
 }
 
 #[derive(Clone, Hash, Serialize, Deserialize)]
@@ -359,7 +407,17 @@ impl Graph {
                     );
                     ui.label(job);
                 })
-                .context_menu(|ui| annotations.tx_menu(*txid, ui));
+                .context_menu(|ui| {
+                    ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
+                    ui.menu_button("Export", |ui| {
+                        if ui.button("Beancount").clicked() {
+                            ui.ctx().output_mut(|o| {
+                                o.copied_text = node.export_beancount(txid, label.clone())
+                            });
+                            ui.close_menu();
+                        }
+                    });
+                });
 
             if response.clicked() {
                 ui.output_mut(|o| o.copied_text = txid.hex_string());
@@ -404,9 +462,13 @@ impl Graph {
                     .on_hover_ui(|ui| {
                         let label = match annotations.coin_label(coin) {
                             Some(l) => format!(" [{}]", l),
-                            None => "".to_string()
+                            None => "".to_string(),
                         };
-                        ui.label(RichText::new(format!("⏴Input{}", label)).heading().monospace());
+                        ui.label(
+                            RichText::new(format!("⏴Input{}", label))
+                                .heading()
+                                .monospace(),
+                        );
                         let mut job = LayoutJob::default();
                         sats_layout(&mut job, &Sats(input.value), &font_id);
                         newline(&mut job, &font_id);
@@ -431,7 +493,10 @@ impl Graph {
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
-                    annotations.coin_color(coin).unwrap_or(Color32::WHITE).gamma_multiply(0.4),
+                    annotations
+                        .coin_color(coin)
+                        .unwrap_or(Color32::WHITE)
+                        .gamma_multiply(0.4),
                     stroke,
                 );
             }
@@ -451,9 +516,13 @@ impl Graph {
                         } => {
                             let label = match annotations.coin_label(coin) {
                                 Some(l) => format!(" [{}]", l),
-                                None => "".to_string()
+                                None => "".to_string(),
                             };
-                            ui.label(RichText::new(format!("Unspent Output{}", label)).heading().monospace());
+                            ui.label(
+                                RichText::new(format!("Unspent Output{}", label))
+                                    .heading()
+                                    .monospace(),
+                            );
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
@@ -467,9 +536,13 @@ impl Graph {
                         } => {
                             let label = match annotations.coin_label(coin) {
                                 Some(l) => format!(" [{}]", l),
-                                None => "".to_string()
+                                None => "".to_string(),
                             };
-                            ui.label(RichText::new(format!("Output⏵{}", label)).heading().monospace());
+                            ui.label(
+                                RichText::new(format!("Output⏵{}", label))
+                                    .heading()
+                                    .monospace(),
+                            );
                             let mut job = LayoutJob::default();
                             sats_layout(&mut job, &Sats(output.value), &font_id);
                             newline(&mut job, &font_id);
@@ -488,10 +561,9 @@ impl Graph {
                     });
 
                 match output.output_type {
-                    OutputType::Fees => {},
+                    OutputType::Fees => {}
                     _ => {
-                        response = response
-                            .context_menu(|ui| annotations.coin_menu(coin, ui));
+                        response = response.context_menu(|ui| annotations.coin_menu(coin, ui));
                     }
                 }
 
@@ -526,12 +598,18 @@ impl Graph {
                         OutputType::Utxo {
                             address: _,
                             address_type: _,
-                        } => annotations.coin_color(coin).unwrap_or(Color32::GRAY).gamma_multiply(0.4),
+                        } => annotations
+                            .coin_color(coin)
+                            .unwrap_or(Color32::GRAY)
+                            .gamma_multiply(0.4),
                         OutputType::Spent {
                             spending_txid: _,
                             address: _,
                             address_type: _,
-                        } => annotations.coin_color(coin).unwrap_or(Color32::WHITE).gamma_multiply(0.4),
+                        } => annotations
+                            .coin_color(coin)
+                            .unwrap_or(Color32::WHITE)
+                            .gamma_multiply(0.4),
                         OutputType::Fees => Color32::BLACK.gamma_multiply(0.8),
                     },
                     stroke,

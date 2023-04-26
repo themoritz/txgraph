@@ -14,7 +14,6 @@ pub struct Annotations {
 }
 
 impl Annotations {
-
     const COLORS: [Color32; 7] = [
         Color32::RED,
         Color32::GREEN,
