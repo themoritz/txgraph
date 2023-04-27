@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     tx: String,
@@ -18,6 +18,18 @@ pub struct AppStore {
     graph: Graph,
     transform: Transform,
     annotations: Annotations,
+}
+
+impl Default for AppStore {
+    fn default() -> Self {
+        AppStore {
+            tx: "96099df701c0c2e2bc767270f7897cb65c5c3082342e132a3e3561f2f6696029".to_owned(),
+            layout_params: Default::default(),
+            graph: Default::default(),
+            transform: Default::default(),
+            annotations: Default::default()
+        }
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
