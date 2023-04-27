@@ -77,16 +77,17 @@ impl Store {
                     let address = Address::from_script(
                         &input.script_pubkey,
                         bitcoin_explorer::Network::Bitcoin,
-                    )
-                    .unwrap();
+                    );
                     Input {
                         txid: tx.input[i].txid,
                         vout: tx.input[i].vout,
                         value: input.value,
-                        address: address.to_string(),
-                        address_type: address
-                            .address_type()
-                            .map_or("?".to_string(), |t| t.to_string()),
+                        address: address
+                            .clone()
+                            .map_or("????".to_string(), |a| a.to_string()),
+                        address_type: address.map_or("unknown".to_string(), |a| {
+                            a.address_type().map_or("?".to_string(), |t| t.to_string())
+                        }),
                     }
                 })
                 .collect(),
@@ -98,15 +99,16 @@ impl Store {
                     let address = Address::from_script(
                         &output.script_pubkey,
                         bitcoin_explorer::Network::Bitcoin,
-                    )
-                    .unwrap();
+                    );
                     Ok(Output {
                         spending_txid: self.get_spending_txid(txid, o as u32)?,
                         value: output.value,
-                        address: address.to_string(),
-                        address_type: address
-                            .address_type()
-                            .map_or("?".to_string(), |t| t.to_string()),
+                        address: address
+                            .clone()
+                            .map_or("????".to_string(), |a| a.to_string()),
+                        address_type: address.map_or("unknown".to_string(), |a| {
+                            a.address_type().map_or("?".to_string(), |t| t.to_string())
+                        }),
                     })
                 })
                 .collect::<Result<Vec<Output>>>()?,

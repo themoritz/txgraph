@@ -222,12 +222,15 @@ impl Graph {
             })
             .collect();
 
-        outputs.push(DrawableOutput {
-            top: bot,
-            bot: bot + scale(tx.fees()) * height / output_height,
-            value: tx.fees(),
-            output_type: OutputType::Fees,
-        });
+        // Coinbase txs don't have fees
+        if !tx.is_coinbase() {
+            outputs.push(DrawableOutput {
+                top: bot,
+                bot: bot + scale(tx.fees()) * height / output_height,
+                value: tx.fees(),
+                output_type: OutputType::Fees,
+            });
+        }
 
         self.nodes.insert(
             txid,
@@ -417,6 +420,10 @@ impl Graph {
                             ui.close_menu();
                         }
                     });
+                    if ui.button("Remove").clicked() {
+                        remove_tx(*txid);
+                        ui.close_menu();
+                    }
                 });
 
             if response.clicked() {
@@ -872,6 +879,7 @@ fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType,
         AddressType::P2SH => 1,   // "3"
         AddressType::P2WPKH => 4, // "bc1q"
         AddressType::P2WSH => 4,  // "bc1q"
+        AddressType::Unknown => 0,
     };
 
     job.append(&address[0..highlight], 0.0, highlight_format);
@@ -899,6 +907,7 @@ fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType,
         AddressType::P2WPKH => "p2wpkh",
         AddressType::P2WSH => "p2wsh",
         AddressType::P2TR => "p2tr",
+        AddressType::Unknown => "?",
     };
 
     job.append(&format!(" ({})", type_), 0.0, type_format);

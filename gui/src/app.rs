@@ -27,7 +27,7 @@ impl Default for AppStore {
             layout_params: Default::default(),
             graph: Default::default(),
             transform: Default::default(),
-            annotations: Default::default()
+            annotations: Default::default(),
         }
     }
 }

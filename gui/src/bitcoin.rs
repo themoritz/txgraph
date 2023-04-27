@@ -80,6 +80,7 @@ pub enum AddressType {
     P2WPKH,
     P2WSH,
     P2TR,
+    Unknown,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,8 +92,17 @@ pub struct Output {
 }
 
 impl Transaction {
+    pub fn is_coinbase(&self) -> bool {
+        self.inputs.is_empty()
+    }
+
     pub fn amount(&self) -> u64 {
-        self.inputs.iter().map(|input| input.value).sum()
+        if self.is_coinbase() {
+            // Special case for coinbase tx
+            self.outputs.iter().map(|output| output.value).sum()
+        } else {
+            self.inputs.iter().map(|input| input.value).sum()
+        }
     }
 
     pub fn fees(&self) -> u64 {
