@@ -292,6 +292,11 @@ impl eframe::App for App {
             ui.add_space(5.0);
 
             ui.collapsing("Load Transaction", |ui| {
+                let center = self
+                    .store
+                    .transform
+                    .pos_from_screen((ui_size / 2.0).to_pos2());
+
                 ui.horizontal(|ui| {
                     let glyph_width =
                         ui.fonts(|f| f.glyph_width(&TextStyle::Body.resolve(ui.style()), '0'));
@@ -302,17 +307,41 @@ impl eframe::App for App {
                     match Txid::new(&self.store.tx) {
                         Ok(txid) => {
                             if ui.button("Go").clicked() {
-                                load_tx(
-                                    txid,
-                                    self.store
-                                        .transform
-                                        .pos_from_screen((ui_size / 2.0).to_pos2()),
-                                );
+                                load_tx(txid, center);
                             }
                         }
                         Err(e) => {
                             ui.label(e);
                         }
+                    }
+                });
+
+                ui.collapsing("Hall of Fame", |ui| {
+                    let interesting_txs = vec![
+                        (
+                            "First Bitcoin",
+                            "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+                        ),
+                        (
+                            "First TX (Satoshi to Hal Finney)",
+                            "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16",
+                        ),
+                        (
+                            "10.000 BTC pizza",
+                            "a1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d",
+                        ),
+                        (
+                            "CoinJoin collaborators + exit merges",
+                            "bd11faf19888270dde9898f28b98d7cf90fe0c8e6af1f2381520f5b2a7289383",
+                        ),
+                    ];
+
+                    for (name, txid) in interesting_txs {
+                        ui.horizontal(|ui| {
+                            if ui.button(name).clicked() {
+                                load_tx(Txid::new(txid).unwrap(), center);
+                            }
+                        });
                     }
                 });
             });
