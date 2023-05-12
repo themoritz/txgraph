@@ -316,7 +316,7 @@ impl eframe::App for App {
                     }
                 });
 
-                ui.collapsing("Hall of Fame", |ui| {
+                ui.collapsing("Hall of Fame (from kycp.org)", |ui| {
                     let interesting_txs = vec![
                         (
                             "First Bitcoin",
@@ -333,6 +333,78 @@ impl eframe::App for App {
                         (
                             "CoinJoin collaborators + exit merges",
                             "bd11faf19888270dde9898f28b98d7cf90fe0c8e6af1f2381520f5b2a7289383",
+                        ),
+                        (
+                            "Whirlpool",
+                            "323df21f0b0756f98336437aa3d2fb87e02b59f1946b714a7b09df04d429dec2",
+                        ),
+                        (
+                            "Wasabi",
+                            "b3dcc5d68e7ba4946e8e7fec0207906fba89ccb4768112a25d6e6941f2e99d97",
+                        ),
+                        (
+                            "Wasabi post-mix spending",
+                            "4f89d6599fd1d728a78972d96930b8fca55e060aca9a04171b6c703c88285325",
+                        ),
+                        (
+                            "DarkWallet",
+                            "8e56317360a548e8ef28ec475878ef70d1371bee3526c017ac22ad61ae5740b8",
+                        ),
+                        (
+                            "MTGox 424242.42424242",
+                            "3a1b9e330d32fef1ee42f8e86420d2be978bbe0dc5862f17da9027cf9e11f8c4",
+                        ),
+                        (
+                            "Basic transaction",
+                            "2f17c08654e518f3ee46dd1438b58ef52b772e8cbc446b96b123d680a80bc3f7",
+                        ),
+                        (
+                            "Non-deterministic TX",
+                            "015d9cf0a12057d009395710611c65109f36b3eaefa3a694594bf243c097f404",
+                        ),
+                        (
+                            "Complex TX",
+                            "722d83ae4183ee17704704bdf31d9e77e6964387f657bbc0e09810a84a7fbad2",
+                        ),
+                        (
+                            "JoinMarket",
+                            "ca48b14f0a836b91d8719c51e50b313b425356a87111c4ed2cd6d81f0dbe60de",
+                        ),
+                        (
+                            "Weak CoinJoin",
+                            "a9b5563592099bf6ed68e7696eeac05c8cb514e21490643e0b7a9b72dac90b07",
+                        ),
+                        (
+                            "Address reuse",
+                            "0f7bf562c8768454077f9b5c6fe0c4c55c9a34786ad7380e00c2d8d00ebf779d",
+                        ),
+                        (
+                            "Block reward",
+                            "2157b554dcfda405233906e461ee593875ae4b1b97615872db6a25130ecc1dd6",
+                        ),
+                        (
+                            "Input/output merges",
+                            "03a858678475235b8b35a67495d67b65d5f2323236571aba3395f57eac57d72d",
+                        ),
+                        (
+                            "Input merges + address reuse",
+                            "b527350146e2a37aff219a63bbf9b8e10f9ba12ab32aa4a70d680742917a281f",
+                        ),
+                        (
+                            "Aggregation",
+                            "e979d30a933c8c3e4e512b3812a74f483a9073957e860236ff103b819a1eaf15",
+                        ),
+                        (
+                            "CoinJoin collaborators + exit merges",
+                            "bd11faf19888270dde9898f28b98d7cf90fe0c8e6af1f2381520f5b2a7289383",
+                        ),
+                        (
+                            "Multisig + address reuse",
+                            "dbbd98e638cc69a771fff79b34f5c6d59f08366f2238472c82d68b63757e051a",
+                        ),
+                        (
+                            "Taproot",
+                            "83c8e0289fecf93b5a284705396f5a652d9886cbd26236b0d647655ad8a37d82",
                         ),
                     ];
 
