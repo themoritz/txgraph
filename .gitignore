@@ -1,6 +1,4 @@
-/gui/target
-/gui/dist
-/server/target
-/server/txs.db
+/target
+/dist
 *.pem
 .DS_Store
