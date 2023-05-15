@@ -1,8 +1,21 @@
-# coin tracker
+# txgraph
 
-Follow the coins [Sankey](https://en.wikipedia.org/wiki/Sankey_diagram) style.
+ [txgraph.info](https://txgraph.info)
+
+Interactive [Sankey style](https://en.wikipedia.org/wiki/Sankey_diagram) visualization of the Bitcoin transaction graph.
 
 ![](./docs/screenshot.png)
+
+#### Features
+* Expand/collapse transaction inputs and outputs
+* Annotate and colorize transactions as well as inputs/outputs
+* Export transaction details to [Beancount](https://beancount.github.io/).
+* Infinite zoom/pan
+* Adjust layout parameters
+
+## Development
+
+This repo covers just the fontend. The backend is a [fork of electrs](https://github.com/themoritz/electrs/tree/txgraph).
 
 ### Testing locally
 
