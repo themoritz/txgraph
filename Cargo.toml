@@ -1,5 +1,5 @@
 [package]
-name = "coin_tracker"
+name = "txgraph"
 version = "0.1.0"
 authors = ["Moritz Drexl <mdrexl@fastmail.fm>"]
 edition = "2021"

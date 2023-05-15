@@ -276,24 +276,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "coin_tracker"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "console_error_panic_hook",
- "eframe",
- "egui",
- "ehttp",
- "hex",
- "reunion",
- "serde",
- "serde_json",
- "tracing-subscriber",
- "tracing-wasm",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1736,6 +1718,24 @@ name = "ttf-parser"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0609f771ad9c6155384897e1df4d948e692667cc0588548b68eb44d052b27633"
+
+[[package]]
+name = "txgraph"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "console_error_panic_hook",
+ "eframe",
+ "egui",
+ "ehttp",
+ "hex",
+ "reunion",
+ "serde",
+ "serde_json",
+ "tracing-subscriber",
+ "tracing-wasm",
+ "wasm-bindgen-futures",
+]
 
 [[package]]
 name = "unicode-bidi"

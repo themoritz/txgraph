@@ -10,7 +10,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Coin Explorer",
         native_options,
-        Box::new(|cc| Box::new(coin_tracker::App::new(cc))),
+        Box::new(|cc| Box::new(txgraph::App::new(cc))),
     )
 }
 
@@ -28,7 +28,7 @@ fn main() {
         eframe::start_web(
             "the_canvas_id", // hardcode it
             web_options,
-            Box::new(|cc| Box::new(coin_tracker::App::new(cc))),
+            Box::new(|cc| Box::new(txgraph::App::new(cc))),
         )
         .await
         .expect("failed to start eframe");
