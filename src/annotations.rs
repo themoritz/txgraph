@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use egui::{Button, Color32, Grid, TextEdit};
 use serde::{Deserialize, Serialize};
 
-use crate::{bitcoin::Txid, style};
+use crate::{bitcoin::Txid, export, style};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Annotations {
@@ -23,6 +23,15 @@ impl Annotations {
         Color32::from_rgb(128, 0, 255),
         Color32::from_rgb(255, 128, 0),
     ];
+
+    pub fn export(&self) -> export::Annotations {
+        export::Annotations {
+            tx_color: self.tx_color.clone(),
+            tx_label: self.tx_label.clone(),
+            coin_color: self.coin_color.clone(),
+            coin_label: self.coin_label.clone(),
+        }
+    }
 
     pub fn set_tx_color(&mut self, txid: Txid, color: Color32) {
         self.tx_color

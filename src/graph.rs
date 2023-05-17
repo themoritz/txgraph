@@ -17,7 +17,7 @@ use crate::{
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
-    style,
+    export, style,
     transform::Transform,
 };
 
@@ -141,6 +141,16 @@ impl Default for Graph {
 }
 
 impl Graph {
+    pub fn export(&self) -> Vec<export::Transaction> {
+        self.nodes
+            .iter()
+            .map(|(txid, node)| export::Transaction {
+                txid: *txid,
+                position: node.pos,
+            })
+            .collect()
+    }
+
     fn add_edge(&mut self, edge: DrawableEdge) {
         self.components.connect(edge.source, edge.target);
         self.edges.push(edge);

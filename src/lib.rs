@@ -5,6 +5,7 @@ mod app;
 mod bezier;
 mod bitcoin;
 mod components;
+mod export;
 mod graph;
 mod style;
 mod transform;

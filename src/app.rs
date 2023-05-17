@@ -1,10 +1,11 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Grid, Layout, Pos2, Rect, Sense, TextEdit, TextStyle, Vec2};
+use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
 
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
+    export::Project,
     graph::Graph,
     transform::Transform,
     widgets::BulletPoint,
@@ -19,6 +20,12 @@ pub struct AppStore {
     graph: Graph,
     transform: Transform,
     annotations: Annotations,
+}
+
+impl AppStore {
+    pub fn export(&self) -> String {
+        Project::new(&self.graph, &self.annotations).export()
+    }
 }
 
 impl Default for AppStore {
@@ -245,15 +252,27 @@ impl eframe::App for App {
 
         egui::Window::new("txgraph.info").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("Reset Zoom").clicked() {
-                    self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
-                }
-                if ui.button("Clear Graph").clicked() {
-                    self.store.graph = Graph::default();
-                }
-                if ui.button("Clear Annotations").clicked() {
-                    self.store.annotations = Annotations::default();
-                }
+                ui.menu_button("File", |ui| {
+                    if ui.button("Export to Clipboard").clicked() {
+                        ui.output_mut(|o| o.copied_text = self.store.export());
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Reset", |ui| {
+                    if ui.button("Zoom").clicked() {
+                        self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
+                        ui.close_menu();
+                    }
+                    if ui.button("Graph").clicked() {
+                        self.store.graph = Graph::default();
+                        ui.close_menu();
+                    }
+                    if ui.button("Annotations").clicked() {
+                        self.store.annotations = Annotations::default();
+                        ui.close_menu();
+                    }
+                });
                 if self.loading {
                     ui.spinner();
                 }
