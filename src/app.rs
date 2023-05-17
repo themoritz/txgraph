@@ -84,7 +84,7 @@ pub struct App {
     update_receiver: Receiver<Update>,
     err: String,
     err_open: bool,
-    loading: bool,
+    loading: usize,
     import_text: String,
 }
 
@@ -135,7 +135,7 @@ impl App {
             update_receiver,
             err: String::new(),
             err_open: false,
-            loading: false,
+            loading: 0,
             import_text: String::new(),
         }
     }
@@ -148,8 +148,8 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
             }
-            Update::Loading => self.loading = true,
-            Update::LoadingDone => self.loading = false,
+            Update::Loading => self.loading += 1,
+            Update::LoadingDone => self.loading -= 1,
             Update::Error { err } => {
                 self.err = err;
                 self.err_open = true
@@ -313,7 +313,7 @@ impl eframe::App for App {
                         ui.close_menu();
                     }
                 });
-                if self.loading {
+                if self.loading > 0 {
                     ui.spinner();
                 }
             });
