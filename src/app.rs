@@ -85,6 +85,7 @@ pub struct App {
     err: String,
     err_open: bool,
     loading: bool,
+    import_text: String,
 }
 
 impl App {
@@ -135,6 +136,7 @@ impl App {
             err: String::new(),
             err_open: false,
             loading: false,
+            import_text: String::new(),
         }
     }
 
@@ -251,12 +253,50 @@ impl eframe::App for App {
         });
 
         egui::Window::new("txgraph.info").show(ctx, |ui| {
+            let screen_center = self
+                .store
+                .transform
+                .pos_from_screen((ui_size / 2.0).to_pos2());
+
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Export to Clipboard").clicked() {
                         ui.output_mut(|o| o.copied_text = self.store.export());
                         ui.close_menu();
                     }
+                    ui.menu_button("Import", |ui| {
+                        ui.add(
+                            TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
+                        );
+                        if ui.button("Go").clicked() {
+                            match Project::import_(&self.import_text) {
+                                Ok((annotations, transactions)) => {
+                                    self.store.annotations = annotations;
+
+                                    self.store.graph = Graph::default();
+                                    for tx in &transactions {
+                                        load_tx(tx.txid, tx.position.to_pos2());
+                                    }
+
+                                    let num_txs = transactions.len() as f32;
+                                    let center =
+                                        (transactions.iter().fold(Vec2::ZERO, |pos, tx| {
+                                            pos + tx.position.to_pos2().to_vec2()
+                                        }) / num_txs)
+                                            .to_pos2();
+                                    self.store.transform.pan_to(center, screen_center);
+
+                                    self.import_text = String::new();
+                                }
+                                Err(e) => sender
+                                    .send(Update::Error {
+                                        err: format!("Could not import Json because:\n{}", e),
+                                    })
+                                    .unwrap(),
+                            }
+                            ui.close_menu();
+                        }
+                    });
                 });
 
                 ui.menu_button("Reset", |ui| {
@@ -279,11 +319,6 @@ impl eframe::App for App {
             });
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
-
-            let center = self
-                .store
-                .transform
-                .pos_from_screen((ui_size / 2.0).to_pos2());
 
             egui::CollapsingHeader::new("Instructions")
                 .default_open(true)
@@ -313,7 +348,7 @@ impl eframe::App for App {
                 ui.horizontal(|ui| match Txid::new(&self.store.tx) {
                     Ok(txid) => {
                         if ui.button("Go").clicked() {
-                            load_tx(txid, center);
+                            load_tx(txid, screen_center);
                         }
                     }
                     Err(e) => {
@@ -403,7 +438,7 @@ impl eframe::App for App {
 
                     for (name, txid) in interesting_txs {
                         if ui.button(name).clicked() {
-                            load_tx(Txid::new(txid).unwrap(), center);
+                            load_tx(Txid::new(txid).unwrap(), screen_center);
                         }
                     }
                 });

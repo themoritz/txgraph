@@ -146,7 +146,7 @@ impl Graph {
             .iter()
             .map(|(txid, node)| export::Transaction {
                 txid: *txid,
-                position: node.pos,
+                position: export::Position::from_pos2(node.pos),
             })
             .collect()
     }
@@ -422,7 +422,7 @@ impl Graph {
                 })
                 .context_menu(|ui| {
                     ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
-                    ui.menu_button("Export", |ui| {
+                    ui.menu_button("Export to Clipboard", |ui| {
                         if ui.button("Beancount").clicked() {
                             ui.ctx().output_mut(|o| {
                                 o.copied_text = node.export_beancount(txid, label.clone())

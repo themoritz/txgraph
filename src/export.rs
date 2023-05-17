@@ -16,8 +16,10 @@ impl Project {
         serde_json::to_string(self).unwrap()
     }
 
-    pub fn import_(string: String) -> Result<Self, String> {
-        serde_json::from_str(&string).map_err(|e| e.to_string())
+    pub fn import_(string: &str) -> Result<(annotations::Annotations, Vec<Transaction>), String> {
+        let slf: Self = serde_json::from_str(string).map_err(|e| e.to_string())?;
+        let annotations = annotations::Annotations::import_(&slf.annotations)?;
+        Ok((annotations, slf.transactions))
     }
 
     pub fn new(graph: &Graph, annotations: &annotations::Annotations) -> Self {
@@ -30,14 +32,33 @@ impl Project {
 
 #[derive(Serialize, Deserialize)]
 pub struct Annotations {
-    pub tx_color: HashMap<Txid, [u8; 3]>,
-    pub tx_label: HashMap<Txid, String>,
-    pub coin_color: HashMap<(Txid, usize), [u8; 3]>,
-    pub coin_label: HashMap<(Txid, usize), String>,
+    pub tx_color: HashMap<String, [u8; 3]>,
+    pub tx_label: HashMap<String, String>,
+    pub coin_color: HashMap<String, [u8; 3]>,
+    pub coin_label: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Transaction {
     pub txid: Txid,
-    pub position: Pos2,
+    pub position: Position,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Position {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Position {
+    pub fn from_pos2(pos: Pos2) -> Self {
+        Self {
+            x: pos.x.round() as i32,
+            y: pos.y.round() as i32,
+        }
+    }
+
+    pub fn to_pos2(&self) -> Pos2 {
+        Pos2::new(self.x as f32, self.y as f32)
+    }
 }

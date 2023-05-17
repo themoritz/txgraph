@@ -24,12 +24,62 @@ impl Annotations {
         Color32::from_rgb(255, 128, 0),
     ];
 
+    pub fn import_(annotations: &export::Annotations) -> Result<Self, String> {
+        fn txids_from_strings<T: Clone>(
+            map: &HashMap<String, T>,
+        ) -> Result<HashMap<Txid, T>, String> {
+            map.iter()
+                .map(|(s, v)| {
+                    let txid = Txid::new(s)?;
+                    Ok((txid, v.clone()))
+                })
+                .collect::<Result<HashMap<_, _>, _>>()
+        }
+
+        fn txos_from_strings<T: Clone>(
+            map: &HashMap<String, T>,
+        ) -> Result<HashMap<(Txid, usize), T>, String> {
+            map.iter()
+                .map(|(s, v)| {
+                    let parts: Vec<_> = s.split(':').collect();
+                    if parts.len() != 2 {
+                        return Err("Expected txo key separated by `:`".to_string());
+                    }
+                    let txid = Txid::new(parts[0])?;
+                    let vout = parts[1].parse::<usize>().map_err(|e| e.to_string())?;
+                    Ok(((txid, vout), v.clone()))
+                })
+                .collect::<Result<HashMap<_, _>, _>>()
+        }
+
+        let result = Self {
+            tx_color: txids_from_strings(&annotations.tx_color)?,
+            tx_label: txids_from_strings(&annotations.tx_label)?,
+            coin_color: txos_from_strings(&annotations.coin_color)?,
+            coin_label: txos_from_strings(&annotations.coin_label)?,
+        };
+
+        Ok(result)
+    }
+
     pub fn export(&self) -> export::Annotations {
+        fn txids_to_strings<T: Clone>(map: &HashMap<Txid, T>) -> HashMap<String, T> {
+            map.iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect()
+        }
+
+        fn txos_to_strings<T: Clone>(map: &HashMap<(Txid, usize), T>) -> HashMap<String, T> {
+            map.iter()
+                .map(|((txid, vout), v)| (format!("{}:{}", txid, vout), v.clone()))
+                .collect()
+        }
+
         export::Annotations {
-            tx_color: self.tx_color.clone(),
-            tx_label: self.tx_label.clone(),
-            coin_color: self.coin_color.clone(),
-            coin_label: self.coin_label.clone(),
+            tx_color: txids_to_strings(&self.tx_color),
+            tx_label: txids_to_strings(&self.tx_label),
+            coin_color: txos_to_strings(&self.coin_color),
+            coin_label: txos_to_strings(&self.coin_label),
         }
     }
 

@@ -52,4 +52,9 @@ impl Transform {
     pub fn reset_zoom(&mut self, pos: Pos2) {
         self.zoom(1.0 / self.z, pos);
     }
+
+    /// Make `pos` map to the center of the screen. `screen_center` is in real coordinates.
+    pub fn pan_to(&mut self, pos: Pos2, screen_center: Pos2) {
+        self.translate(self.z * (screen_center - pos));
+    }
 }
