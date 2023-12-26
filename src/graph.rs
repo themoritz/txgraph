@@ -657,20 +657,31 @@ impl Graph {
             }
         }
 
+        // Calculate edge multiplicities to deal with transactions sharing
+        // multiple inputs/outputs.
+        let mut edge_multiplicities: HashMap<(Txid, Txid), usize> = HashMap::new();
+        for edge in &self.edges {
+            let key = (edge.source, edge.target);
+            *edge_multiplicities.entry(key).or_insert(0) += 1;
+        }
+
         for edge in &self.edges {
             let from_rect = output_rects.get(&(edge.source, edge.source_pos)).unwrap();
             let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
 
+            // Attraction force between nodes
             let diff = to_rect.left_center() - from_rect.right_center();
             let mut force = diff.length_sq() / layout_params.scale * diff.normalized();
             force.y *= layout_params.y_compress;
-            self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout_params.dt;
-            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
 
             // Repulsion force between layers
-            let force = Vec2::new(scale2 / diff.x.max(2.0), 0.0);
-            self.nodes.get_mut(&edge.source).unwrap().velocity -= force * layout_params.dt;
-            self.nodes.get_mut(&edge.target).unwrap().velocity += force * layout_params.dt;
+            force -= Vec2::new(scale2 / diff.x.max(2.0), 0.0);
+
+            // Take edge multiplicity into account
+            force = force / edge_multiplicities[&(edge.source, edge.target)] as f32;
+
+            self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout_params.dt;
+            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
         }
 
         // UPDATE POSITIONS //
