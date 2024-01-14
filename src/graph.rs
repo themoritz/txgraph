@@ -7,7 +7,7 @@ use std::{
 use eframe::epaint::TextShape;
 use egui::{
     show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId, Pos2, Rect,
-    RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
+    RichText, Rounding, Sense, TextFormat, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use crate::{
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
-    export, style,
+    export, style::{self, Style},
     transform::Transform,
 };
 
@@ -302,6 +302,8 @@ impl Graph {
         layout_params: &LayoutParams,
         annotations: &mut Annotations,
     ) {
+        let style = style::get(ui);
+
         // PREPARE RECTS //
 
         let mut input_rects: HashMap<(Txid, usize), Rect> = HashMap::new();
@@ -312,10 +314,10 @@ impl Graph {
         for (txid, node) in &self.nodes {
             let outer_rect = Rect::from_center_size(
                 node.pos,
-                Vec2::new(style::TX_WIDTH + 2.0 * style::IO_WIDTH, node.height),
+                Vec2::new(style.tx_width + 2.0 * style.io_width, node.height),
             );
             let inner_rect =
-                Rect::from_center_size(node.pos, Vec2::new(style::TX_WIDTH, node.height));
+                Rect::from_center_size(node.pos, Vec2::new(style.tx_width, node.height));
 
             outer_rects.insert(*txid, outer_rect);
             inner_rects.insert(*txid, inner_rect);
@@ -324,7 +326,7 @@ impl Graph {
             for (i, input) in node.inputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
                     Pos2::new(left_top.x, left_top.y + input.top),
-                    Pos2::new(left_top.x + style::IO_WIDTH, left_top.y + input.bot),
+                    Pos2::new(left_top.x + style.io_width, left_top.y + input.bot),
                 );
                 input_rects.insert((*txid, i), rect);
             }
@@ -332,22 +334,12 @@ impl Graph {
             let right_top = outer_rect.right_top();
             for (o, output) in node.outputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(right_top.x - style::IO_WIDTH, right_top.y + output.top),
+                    Pos2::new(right_top.x - style.io_width, right_top.y + output.top),
                     Pos2::new(right_top.x, right_top.y + output.bot),
                 );
                 output_rects.insert((*txid, o), rect);
             }
         }
-
-        // LAYOUT DEFS //
-
-        let font_id = FontId::monospace(10.0);
-
-        let format = TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::BLACK,
-            ..Default::default()
-        };
 
         // DRAW EDGES //
 
@@ -375,9 +367,9 @@ impl Graph {
                     }
                     let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
                     let mut job = LayoutJob::default();
-                    sats_layout(&mut job, &Sats(input.value), &font_id);
-                    newline(&mut job, &font_id);
-                    address_layout(&mut job, &input.address, input.address_type, &font_id);
+                    sats_layout(&mut job, &Sats(input.value), &style);
+                    newline(&mut job, &style.font_id());
+                    address_layout(&mut job, &input.address, input.address_type, &style);
                     ui.label(job);
                 });
             }
@@ -393,7 +385,7 @@ impl Graph {
 
         // DRAW NODES //
 
-        let initial_dist = Vec2::new(style::IO_WIDTH + style::TX_WIDTH / 2.0 + 5.0, 0.0);
+        let initial_dist = Vec2::new(style.io_width + style.tx_width / 2.0 + 5.0, 0.0);
         let painter = ui.painter();
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
@@ -403,16 +395,22 @@ impl Graph {
             let response = ui
                 .interact(rect, ui.id().with(txid), Sense::drag())
                 .on_hover_ui(|ui| {
+                    let format = TextFormat {
+                        font_id: style.font_id(),
+                        color: style.black_text_color(),
+                        ..Default::default()
+                    };
+
                     ui.label(RichText::new("Transaction").heading().monospace());
                     let mut job = LayoutJob::default();
-                    txid_layout(&mut job, txid, &font_id);
-                    newline(&mut job, &font_id);
+                    txid_layout(&mut job, txid, &style);
+                    newline(&mut job, &style.font_id());
                     if let Some(label) = label.clone() {
                         job.append(&format!("[{}]", label), 0.0, format.clone());
-                        newline(&mut job, &font_id);
+                        newline(&mut job, &style.font_id());
                     }
                     newline(&mut job, &FontId::monospace(5.0));
-                    sats_layout(&mut job, &Sats(node.tx_value), &font_id);
+                    sats_layout(&mut job, &Sats(node.tx_value), &style);
                     job.append(
                         &format!("\n{} (block {})", node.tx_timestamp, node.block_height),
                         0.0,
@@ -456,14 +454,14 @@ impl Graph {
             painter.rect(
                 rect,
                 Rounding::none(),
-                annotations.tx_color(*txid).gamma_multiply(0.2),
-                Stroke::new(style::TX_STROKE_WIDTH, Color32::BLACK),
+                annotations.tx_color(*txid).unwrap_or(style.tx_bg).gamma_multiply(0.4),
+                style.tx_stroke()
             );
 
             let tx_painter = painter.with_clip_rect(rect);
             tx_painter.add(rotated_layout(
                 ui,
-                tx_content(txid, &label, &node.tx_timestamp, &Sats(node.tx_value)),
+                tx_content(txid, &label, &node.tx_timestamp, &Sats(node.tx_value), &style),
                 rect.right_top() + Vec2::new(-1.0, 2.0),
                 PI / 2.0,
             ));
@@ -487,12 +485,12 @@ impl Graph {
                                 .monospace(),
                         );
                         let mut job = LayoutJob::default();
-                        sats_layout(&mut job, &Sats(input.value), &font_id);
-                        newline(&mut job, &font_id);
-                        address_layout(&mut job, &input.address, input.address_type, &font_id);
-                        newline(&mut job, &font_id);
+                        sats_layout(&mut job, &Sats(input.value), &style);
+                        newline(&mut job, &style.font_id());
+                        address_layout(&mut job, &input.address, input.address_type, &style);
+                        newline(&mut job, &style.font_id());
                         newline(&mut job, &FontId::monospace(5.0));
-                        txid_layout(&mut job, &input.funding_txid, &font_id);
+                        txid_layout(&mut job, &input.funding_txid, &style);
                         ui.label(job);
                     })
                     .context_menu(|ui| annotations.coin_menu(coin, ui));
@@ -505,21 +503,21 @@ impl Graph {
                     }
                 }
 
-                let mut stroke = ui.style().interact(&response).fg_stroke;
-                stroke.width *= style::TX_STROKE_WIDTH;
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
                     annotations
                         .coin_color(coin)
-                        .unwrap_or(Color32::WHITE)
+                        .unwrap_or(style.io_bg)
                         .gamma_multiply(0.4),
-                    stroke,
+                    style.io_stroke(&response),
                 );
             }
 
             let id = ui.id().with("o").with(txid);
-            for (o, output) in node.outputs.iter().enumerate() {
+            // rev() so that we paint the fees first and they get overdrawn by the
+            // hover boxes of the outpus.
+            for (o, output) in node.outputs.iter().enumerate().rev() {
                 let coin = (*txid, o);
 
                 let rect = *output_rects.get(&(*txid, o)).unwrap();
@@ -541,9 +539,9 @@ impl Graph {
                                     .monospace(),
                             );
                             let mut job = LayoutJob::default();
-                            sats_layout(&mut job, &Sats(output.value), &font_id);
-                            newline(&mut job, &font_id);
-                            address_layout(&mut job, address, *address_type, &font_id);
+                            sats_layout(&mut job, &Sats(output.value), &style);
+                            newline(&mut job, &style.font_id());
+                            address_layout(&mut job, address, *address_type, &style);
                             ui.label(job);
                         }
                         OutputType::Spent {
@@ -561,18 +559,18 @@ impl Graph {
                                     .monospace(),
                             );
                             let mut job = LayoutJob::default();
-                            sats_layout(&mut job, &Sats(output.value), &font_id);
-                            newline(&mut job, &font_id);
-                            address_layout(&mut job, address, *address_type, &font_id);
-                            newline(&mut job, &font_id);
+                            sats_layout(&mut job, &Sats(output.value), &style);
+                            newline(&mut job, &style.font_id());
+                            address_layout(&mut job, address, *address_type, &style);
+                            newline(&mut job, &style.font_id());
                             newline(&mut job, &FontId::monospace(5.0));
-                            txid_layout(&mut job, spending_txid, &font_id);
+                            txid_layout(&mut job, spending_txid, &style);
                             ui.label(job);
                         }
                         OutputType::Fees => {
                             ui.label(RichText::new("Fees").heading().monospace());
                             let mut job = LayoutJob::default();
-                            sats_layout(&mut job, &Sats(output.value), &font_id);
+                            sats_layout(&mut job, &Sats(output.value), &style);
                             ui.label(job);
                         }
                     });
@@ -599,15 +597,6 @@ impl Graph {
                     }
                 }
 
-                let mut stroke = match output.output_type {
-                    OutputType::Spent {
-                        spending_txid: _,
-                        address: _,
-                        address_type: _,
-                    } => ui.style().interact(&response).fg_stroke,
-                    _ => Stroke::new(1.0, Color32::BLACK),
-                };
-                stroke.width *= style::TX_STROKE_WIDTH;
                 painter.rect(
                     screen_rect,
                     Rounding::none(),
@@ -617,7 +606,7 @@ impl Graph {
                             address_type: _,
                         } => annotations
                             .coin_color(coin)
-                            .unwrap_or(Color32::GRAY)
+                            .unwrap_or(style.utxo_fill())
                             .gamma_multiply(0.4),
                         OutputType::Spent {
                             spending_txid: _,
@@ -625,11 +614,18 @@ impl Graph {
                             address_type: _,
                         } => annotations
                             .coin_color(coin)
-                            .unwrap_or(Color32::WHITE)
+                            .unwrap_or(style.io_bg)
                             .gamma_multiply(0.4),
-                        OutputType::Fees => Color32::BLACK.gamma_multiply(0.8),
+                        OutputType::Fees => style.fees_fill()
                     },
-                    stroke,
+                    match output.output_type {
+                        OutputType::Spent {
+                            spending_txid: _,
+                            address: _,
+                            address_type: _,
+                        } => style.io_stroke(&response),
+                        _ => style.tx_stroke(),
+                    },
                 );
             }
         }
@@ -708,22 +704,22 @@ pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> T
     shape
 }
 
-fn tx_content(txid: &Txid, label: &Option<String>, timestamp: &str, sats: &Sats) -> LayoutJob {
+fn tx_content(txid: &Txid, label: &Option<String>, timestamp: &str, sats: &Sats, style: &Style) -> LayoutJob {
     let mut job = LayoutJob::default();
     let font_id = FontId::monospace(10.0);
     let format = TextFormat {
         font_id: font_id.clone(),
-        color: Color32::BLACK,
+        color: style.black_text_color(),
         ..Default::default()
     };
 
     if let Some(label) = label {
         job.append(label, 0.0, format.clone());
     } else {
-        txid_layout(&mut job, txid, &font_id);
+        txid_layout(&mut job, txid, style);
     }
     newline(&mut job, &font_id);
-    sats_layout(&mut job, sats, &font_id);
+    sats_layout(&mut job, sats, style);
     newline(&mut job, &font_id);
     job.append(&timestamp[2..], 0.0, format);
     job
@@ -742,15 +738,15 @@ fn newline(job: &mut LayoutJob, font_id: &FontId) {
 
 const SPACING: f32 = 3.0;
 
-fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
+fn txid_layout(job: &mut LayoutJob, txid: &Txid, style: &Style) {
     let black_format = TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::BLACK,
+        font_id: style.font_id(),
+        color: style.black_text_color(),
         ..Default::default()
     };
     let white_format = TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::from_gray(128),
+        font_id: style.font_id(),
+        color: style.white_text_color(),
         ..Default::default()
     };
 
@@ -772,23 +768,24 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, font_id: &FontId) {
     }
 }
 
-fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
+fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
+    let font_id = style.font_id();
     let btc_font = FontId::new(font_id.size, egui::FontFamily::Name("btc".into()));
     let btc_format = TextFormat {
         font_id: btc_font,
-        color: style::BTC,
+        color: style.btc,
         ..Default::default()
     };
     job.append("\u{E9A8}", 0.0, btc_format);
 
     let black_format = TextFormat {
         font_id: font_id.clone(),
-        color: Color32::BLACK,
+        color: style.black_text_color(),
         ..Default::default()
     };
     let white_format = TextFormat {
         font_id: font_id.clone(),
-        color: Color32::from_gray(128),
+        color: style.white_text_color(),
         ..Default::default()
     };
 
@@ -872,21 +869,21 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, font_id: &FontId) {
     job.append("sats", SPACING, black_format);
 }
 
-fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType, font_id: &FontId) {
+fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType, style: &Style) {
     let black_format = TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::BLACK,
+        font_id: style.font_id(),
+        color: style.black_text_color(),
         ..Default::default()
     };
     let white_format = TextFormat {
-        color: Color32::from_gray(128),
+        color: style.white_text_color(),
         ..black_format.clone()
     };
     let highlight_format = TextFormat {
-        color: style::BLUE,
+        color: style.tx_bg,
         ..black_format.clone()
     };
-    let mut small = font_id.clone();
+    let mut small = style.font_id();
     small.size *= 0.7;
     let type_format = TextFormat {
         font_id: small,

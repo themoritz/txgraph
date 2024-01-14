@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2, global_dark_light_mode_switch};
 
 use crate::{
     annotations::Annotations,
@@ -316,6 +316,8 @@ impl eframe::App for App {
                 if self.loading > 0 {
                     ui.spinner();
                 }
+
+                global_dark_light_mode_switch(ui);
             });
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
