@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use egui::{Color32, Stroke, Response, FontId};
+use egui::{Color32, Stroke, Response, FontId, Widget};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 pub struct Style {
     pub tx_width: f32,
@@ -84,5 +85,70 @@ pub fn get(ui: &egui::Ui) -> Style {
         Style::dark(egui_style.clone())
     } else {
         Style::light(egui_style.clone())
+    }
+}
+
+#[derive(Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum Theme {
+    Light,
+    Dark,
+    #[default]
+    System
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = isDarkMode)]
+    fn is_dark_mode() -> bool;
+}
+
+impl Theme {
+    fn is_dark_mode(&self) -> bool {
+        match self {
+            Theme::Light => false,
+            Theme::Dark => true,
+            Theme::System => is_dark_mode()
+        }
+    }
+}
+
+pub struct ThemeSwitch <'a> {
+    theme: &'a mut Theme
+}
+
+impl <'a> ThemeSwitch <'a> {
+    pub fn new(theme: &'a mut Theme) -> Self {
+        Self { theme }
+    }
+}
+
+impl<'a> Widget for ThemeSwitch<'a> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let response = ui.menu_button("◑ Theme", |ui| {
+            if ui.selectable_value(self.theme, Theme::System, "System").clicked() {
+                ui.close_menu();
+            }
+            if ui.selectable_value(self.theme, Theme::Light, "Light").clicked() {
+                ui.close_menu();
+            }
+            if ui.selectable_value(self.theme, Theme::Dark, "Dark").clicked() {
+                ui.close_menu();
+            }
+        }).response;
+
+        let old_dark_mode = ui.style().visuals.dark_mode;
+        let dark_mode = self.theme.is_dark_mode();
+
+        if old_dark_mode != dark_mode {
+            ui.ctx().set_visuals(
+                if dark_mode {
+                    egui::Visuals::dark()
+                } else {
+                    egui::Visuals::light()
+                }
+            );
+        }
+
+        response
     }
 }

@@ -8,7 +8,7 @@ use crate::{
     export::Project,
     graph::Graph,
     transform::Transform,
-    widgets::{BulletPoint, DarkModeSwitch},
+    widgets::BulletPoint, style::{Theme, ThemeSwitch},
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -20,6 +20,7 @@ pub struct AppStore {
     graph: Graph,
     transform: Transform,
     annotations: Annotations,
+    theme: Theme,
 }
 
 impl AppStore {
@@ -36,6 +37,7 @@ impl Default for AppStore {
             graph: Default::default(),
             transform: Default::default(),
             annotations: Default::default(),
+            theme: Default::default(),
         }
     }
 }
@@ -317,7 +319,7 @@ impl eframe::App for App {
                     ui.spinner();
                 }
 
-                ui.add(DarkModeSwitch);
+                ui.add(ThemeSwitch::new(&mut self.store.theme));
             });
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
