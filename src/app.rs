@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2, global_dark_light_mode_switch};
+use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
 
 use crate::{
     annotations::Annotations,
@@ -8,7 +8,7 @@ use crate::{
     export::Project,
     graph::Graph,
     transform::Transform,
-    widgets::BulletPoint,
+    widgets::{BulletPoint, DarkModeSwitch},
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -317,7 +317,7 @@ impl eframe::App for App {
                     ui.spinner();
                 }
 
-                global_dark_light_mode_switch(ui);
+                ui.add(DarkModeSwitch);
             });
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
