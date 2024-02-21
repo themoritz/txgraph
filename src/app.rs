@@ -324,6 +324,8 @@ impl eframe::App for App {
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
 
+            ui.label("Visualizing Bitcoin's transaction graph.");
+
             egui::CollapsingHeader::new("Instructions")
                 .default_open(true)
                 .show(ui, |ui| {
