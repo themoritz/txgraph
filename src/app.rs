@@ -156,6 +156,7 @@ impl App {
                         update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
                     }
                 }
+            } else if url == "/" {
             } else {
                 update_sender2.send(Update::Error { err: format!("Unknown route: {}", url) }).unwrap();
             }
