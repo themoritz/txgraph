@@ -5,10 +5,10 @@ function isDarkMode() {
 function addRouteListener(callback) {
   window.addEventListener('popstate', (event) => {
     event.preventDefault();
-    callback(window.location.href);
+    callback(window.location.pathname);
   });
 
-  callback(window.location.href);
+  callback(window.location.pathname);
 }
 
 function pushHistoryState(url) {

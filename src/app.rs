@@ -145,13 +145,17 @@ impl App {
 
         let update_sender2 = update_sender.clone();
         let closure = Closure::new(move |url: String| {
-            match Txid::new(&url) {
-                Ok(txid) => {
-                    loadtx_sender.send(txid).unwrap();
+            if let Some(txid) = url.strip_prefix("/tx/") {
+                match Txid::new(txid) {
+                    Ok(txid) => {
+                        loadtx_sender.send(txid).unwrap();
+                    }
+                    Err(err) => {
+                        update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
+                    }
                 }
-                Err(err) => {
-                    update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
-                }
+            } else {
+                update_sender2.send(Update::Error { err: format!("Unknown route: {}", url) }).unwrap();
             }
         });
 
