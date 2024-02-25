@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     annotations::Annotations,
-    app::LayoutParams,
+    app::{push_history_state, LayoutParams},
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
@@ -428,6 +428,10 @@ impl Graph {
                             ui.close_menu();
                         }
                     });
+                    if ui.button("Copy Txid").clicked() {
+                        ui.output_mut(|o| o.copied_text = txid.hex_string());
+                        ui.close_menu();
+                    }
                     if ui.button("Remove").clicked() {
                         remove_tx(*txid);
                         ui.close_menu();
@@ -435,7 +439,7 @@ impl Graph {
                 });
 
             if response.clicked() {
-                ui.output_mut(|o| o.copied_text = txid.hex_string());
+                push_history_state(&format!("tx/{}", txid.hex_string()));
             }
 
             if response.hovered() {

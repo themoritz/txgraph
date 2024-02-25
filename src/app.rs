@@ -1,6 +1,7 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
 use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
     annotations::Annotations,
@@ -84,10 +85,20 @@ pub struct App {
     store: AppStore,
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
+    loadtx_receiver: Receiver<Txid>,
     err: String,
     err_open: bool,
     loading: usize,
     import_text: String,
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = addRouteListener)]
+    fn add_route_listener(callback: &Closure<dyn Fn(String)>);
+
+    #[wasm_bindgen(js_name = pushHistoryState)]
+    pub fn push_history_state(url: &str);
 }
 
 impl App {
@@ -130,11 +141,28 @@ impl App {
         };
 
         let (update_sender, update_receiver) = channel();
+        let (loadtx_sender, loadtx_receiver) = channel();
+
+        let update_sender2 = update_sender.clone();
+        let closure = Closure::new(move |url: String| {
+            match Txid::new(&url) {
+                Ok(txid) => {
+                    loadtx_sender.send(txid).unwrap();
+                }
+                Err(err) => {
+                    update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
+                }
+            }
+        });
+
+        add_route_listener(&closure);
+        closure.forget();
 
         App {
             store,
             update_sender,
             update_receiver,
+            loadtx_receiver,
             err: String::new(),
             err_open: false,
             loading: 0,
@@ -216,6 +244,12 @@ impl eframe::App for App {
                 ctx.request_repaint();
             });
         };
+
+        match self.loadtx_receiver.try_recv() {
+            Ok(txid) => load_tx(txid, Pos2::new(0.0, 0.0)),
+            Err(TryRecvError::Empty) => (),
+            Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
+        }
 
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
         ctx.request_repaint();
@@ -315,11 +349,12 @@ impl eframe::App for App {
                         ui.close_menu();
                     }
                 });
+
+                ui.add(ThemeSwitch::new(&mut self.store.theme));
+
                 if self.loading > 0 {
                     ui.spinner();
                 }
-
-                ui.add(ThemeSwitch::new(&mut self.store.theme));
             });
 
             ui.allocate_space(Vec2::new(300.0, 3.0));
