@@ -158,8 +158,8 @@ impl Graph {
         self.edges.push(edge);
     }
 
-    pub fn contains_tx(&self, txid: Txid) -> bool {
-        self.nodes.contains_key(&txid)
+    pub fn get_tx_pos(&self, txid: Txid) -> Option<Pos2> {
+        self.nodes.get(&txid).map(|node| node.pos)
     }
 
     pub fn select(&mut self, txid: Txid) {
@@ -523,7 +523,7 @@ impl Graph {
                     if txids.contains(&input.funding_txid) {
                         update_sender.send(Update::RemoveTx { txid: input.funding_txid }).unwrap();
                     } else {
-                        update_sender.send(Update::LoadOrSelectTx { txid: input.funding_txid, pos: rect.left_center() - initial_dist }).unwrap();
+                        update_sender.send(Update::LoadOrSelectTx { txid: input.funding_txid, pos: Some(rect.left_center() - initial_dist) }).unwrap();
                     }
                 }
 
@@ -616,7 +616,7 @@ impl Graph {
                         if txids.contains(spending_txid) {
                             update_sender.send(Update::RemoveTx { txid: *spending_txid }).unwrap();
                         } else {
-                            update_sender.send(Update::LoadOrSelectTx { txid: *spending_txid, pos: rect.right_center() + initial_dist }).unwrap();
+                            update_sender.send(Update::LoadOrSelectTx { txid: *spending_txid, pos: Some(rect.right_center() + initial_dist) }).unwrap();
                         }
                     }
                 }

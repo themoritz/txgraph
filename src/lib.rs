@@ -6,6 +6,7 @@ mod bezier;
 mod bitcoin;
 mod components;
 mod export;
+mod flight;
 mod graph;
 mod style;
 mod transform;

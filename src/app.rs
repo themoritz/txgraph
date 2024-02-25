@@ -4,12 +4,7 @@ use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Ve
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
-    annotations::Annotations,
-    bitcoin::{Transaction, Txid},
-    export::Project,
-    graph::Graph,
-    transform::Transform,
-    widgets::BulletPoint, style::{Theme, ThemeSwitch},
+    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, graph::Graph, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -68,7 +63,7 @@ impl Default for LayoutParams {
 pub enum Update {
     LoadOrSelectTx {
         txid: Txid,
-        pos: Pos2,
+        pos: Option<Pos2>,
     },
     SelectTx {
         txid: Txid,
@@ -95,6 +90,8 @@ pub struct App {
     err: String,
     err_open: bool,
     loading: usize,
+    flight: Flight,
+    ui_size: Vec2,
     import_text: String,
 }
 
@@ -153,7 +150,7 @@ impl App {
             if let Some(txid) = url.strip_prefix("/tx/") {
                 match Txid::new(txid) {
                     Ok(txid) => {
-                        update_sender2.send(Update::LoadOrSelectTx { txid, pos: Pos2::new(0.0, 0.0) }).unwrap();
+                        update_sender2.send(Update::LoadOrSelectTx { txid, pos: None }).unwrap();
                     }
                     Err(err) => {
                         update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
@@ -173,6 +170,8 @@ impl App {
             update_receiver,
             err: String::new(),
             err_open: false,
+            flight: Flight::new(),
+            ui_size: Vec2::ZERO,
             loading: 0,
             import_text: String::new(),
         }
@@ -181,8 +180,9 @@ impl App {
     pub fn apply_update(&mut self, update: Update) {
         match update {
             Update::LoadOrSelectTx { txid, pos } => {
-                if self.store.graph.contains_tx(txid) {
+                if let Some(existing_pos) = self.store.graph.get_tx_pos(txid) {
                     self.store.graph.select(txid);
+                    self.flight.start((self.ui_size / 2.0).to_pos2(), self.store.transform.pos_to_screen(existing_pos));
                     return;
                 }
 
@@ -190,6 +190,7 @@ impl App {
                 self.update_sender.send(Update::Loading).unwrap();
 
                 let sender = self.update_sender.clone();
+                let center = (self.ui_size / 2.0).to_pos2();
 
                 ehttp::fetch(request, move |response| {
                     sender.send(Update::LoadingDone).unwrap();
@@ -200,6 +201,7 @@ impl App {
                                 if let Some(text) = response.text() {
                                     match serde_json::from_str(text) {
                                         Ok(tx) => {
+                                            let pos = pos.unwrap_or(center);
                                             sender.send(Update::AddTx { txid, tx, pos }).unwrap();
                                         }
                                         Err(err) => {
@@ -244,40 +246,36 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        loop {
-            match self.update_receiver.try_recv() {
-                Ok(update) => self.apply_update(update),
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
-            }
-        }
-
         let sender = self.update_sender.clone();
 
-        let load_tx = |txid: Txid, pos: Pos2| {
+        let load_tx = |txid: Txid, pos: Option<Pos2>| {
             sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
 
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
         ctx.request_repaint();
 
-        let mut ui_size = Vec2::ZERO;
-
         let sender2 = sender.clone();
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
-            ui_size = ui.available_size_before_wrap();
+            self.ui_size = ui.available_size_before_wrap();
 
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
                 Sense::click_and_drag().union(Sense::hover()),
             );
 
+            if self.flight.is_active() {
+                let delta = self.flight.update();
+                self.store.transform.translate(-delta);
+            }
+
             // Zoom
             if let Some(hover_pos) = response.hover_pos() {
                 let zoom_delta = ui.input(|i| i.zoom_delta());
                 if zoom_delta != 1.0 {
                     self.store.transform.zoom(zoom_delta, hover_pos);
+                    self.flight.interrupt();
                 }
             }
 
@@ -285,6 +283,15 @@ impl eframe::App for App {
             if response.dragged_by(egui::PointerButton::Primary) {
                 response = response.on_hover_cursor(CursorIcon::Grabbing);
                 self.store.transform.translate(response.drag_delta());
+                self.flight.interrupt();
+            }
+
+            loop {
+                match self.update_receiver.try_recv() {
+                    Ok(update) => self.apply_update(update),
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
+                }
             }
 
             self.store.graph.draw(
@@ -297,11 +304,6 @@ impl eframe::App for App {
         });
 
         egui::Window::new("txgraph.info").show(ctx, |ui| {
-            let screen_center = self
-                .store
-                .transform
-                .pos_from_screen((ui_size / 2.0).to_pos2());
-
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Export to Clipboard").clicked() {
@@ -319,16 +321,21 @@ impl eframe::App for App {
 
                                     self.store.graph = Graph::default();
                                     for tx in &transactions {
-                                        load_tx(tx.txid, tx.position.to_pos2());
+                                        load_tx(tx.txid, Some(tx.position.to_pos2()));
                                     }
 
                                     let num_txs = transactions.len() as f32;
-                                    let center =
+                                    let graph_center =
                                         (transactions.iter().fold(Vec2::ZERO, |pos, tx| {
                                             pos + tx.position.to_pos2().to_vec2()
                                         }) / num_txs)
                                             .to_pos2();
-                                    self.store.transform.pan_to(center, screen_center);
+                                    let screen_center = self
+                                        .store
+                                        .transform
+                                        .pos_from_screen((self.ui_size / 2.0).to_pos2());
+
+                                    self.store.transform.pan_to(graph_center, screen_center);
 
                                     self.import_text = String::new();
                                 }
@@ -345,7 +352,7 @@ impl eframe::App for App {
 
                 ui.menu_button("Reset", |ui| {
                     if ui.button("Zoom").clicked() {
-                        self.store.transform.reset_zoom((ui_size / 2.0).to_pos2());
+                        self.store.transform.reset_zoom((self.ui_size / 2.0).to_pos2());
                         ui.close_menu();
                     }
                     if ui.button("Graph").clicked() {
@@ -354,6 +361,10 @@ impl eframe::App for App {
                     }
                     if ui.button("Annotations").clicked() {
                         self.store.annotations = Annotations::default();
+                        ui.close_menu();
+                    }
+                    if ui.button("All").clicked() {
+                        self.store = AppStore::default();
                         ui.close_menu();
                     }
                 });
@@ -397,7 +408,7 @@ impl eframe::App for App {
                 ui.horizontal(|ui| match Txid::new(&self.store.tx) {
                     Ok(txid) => {
                         if ui.button("Go").clicked() {
-                            load_tx(txid, screen_center);
+                            load_tx(txid, None);
                         }
                     }
                     Err(e) => {
@@ -487,7 +498,7 @@ impl eframe::App for App {
 
                     for (name, txid) in interesting_txs {
                         if ui.button(name).clicked() {
-                            load_tx(Txid::new(txid).unwrap(), screen_center);
+                            load_tx(Txid::new(txid).unwrap(), None);
                         }
                     }
                 });

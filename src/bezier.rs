@@ -20,6 +20,16 @@ impl Cubic {
         }
     }
 
+    /// Use as `Cubic::move_to().eval(t).y`.
+    pub fn move_to() -> Self {
+        Cubic {
+            p0: Pos2::new(0.0, 0.0),
+            p1: Pos2::new(0.0, 0.0),
+            p2: Pos2::new(0.0, 1.0),
+            p3: Pos2::new(1.0, 1.0),
+        }
+    }
+
     pub fn eval(&self, t: f32) -> Pos2 {
         let c = 1.0 - t;
         let c2 = c * c;

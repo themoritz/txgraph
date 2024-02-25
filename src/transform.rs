@@ -2,9 +2,9 @@ use egui::{Pos2, Rect, Vec2};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Transform {
-    pub z: f32,
-    pub t_x: f32,
-    pub t_y: f32,
+    z: f32,
+    t_x: f32,
+    t_y: f32,
 }
 
 impl Default for Transform {
