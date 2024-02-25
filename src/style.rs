@@ -7,6 +7,7 @@ pub struct Style {
     pub tx_width: f32,
     pub tx_stroke_width: f32,
     pub tx_stroke_color: Color32,
+    pub selected_stroke_width: f32,
     pub io_width: f32,
     pub io_highlight_color: Color32,
     pub io_bg: Color32,
@@ -22,6 +23,7 @@ impl Style {
             tx_width: 39.0,
             tx_stroke_width: 1.0,
             tx_stroke_color: Color32::from_gray(128),
+            selected_stroke_width: 3.5,
             io_width: 7.0,
             io_highlight_color: Color32::from_gray(32),
             io_bg: Color32::from_gray(248),
@@ -54,6 +56,10 @@ impl Style {
 
     pub fn tx_stroke(&self) -> Stroke {
         Stroke::new(self.tx_stroke_width, self.tx_stroke_color)
+    }
+
+    pub fn selected_tx_stroke(&self) -> Stroke {
+        Stroke::new(self.selected_stroke_width, self.io_highlight_color.gamma_multiply(0.3))
     }
 
     pub fn utxo_fill(&self) -> Color32 {

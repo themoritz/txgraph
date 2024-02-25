@@ -70,6 +70,9 @@ pub enum Update {
         txid: Txid,
         pos: Pos2,
     },
+    SelectTx {
+        txid: Txid,
+    },
     AddTx {
         txid: Txid,
         tx: Transaction,
@@ -179,6 +182,7 @@ impl App {
         match update {
             Update::LoadOrSelectTx { txid, pos } => {
                 if self.store.graph.contains_tx(txid) {
+                    self.store.graph.select(txid);
                     return;
                 }
 
@@ -215,6 +219,9 @@ impl App {
                     }
                 });
             }
+            Update::SelectTx { txid } => {
+                self.store.graph.select(txid);
+            }
             Update::AddTx { txid, tx, pos } => {
                 self.store.graph.add_tx(txid, tx, pos);
             }
@@ -247,10 +254,6 @@ impl eframe::App for App {
 
         let sender = self.update_sender.clone();
 
-        let remove_tx = |txid: Txid| {
-            sender.send(Update::RemoveTx { txid }).unwrap();
-        };
-
         let load_tx = |txid: Txid, pos: Pos2| {
             sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
@@ -259,6 +262,8 @@ impl eframe::App for App {
         ctx.request_repaint();
 
         let mut ui_size = Vec2::ZERO;
+
+        let sender2 = sender.clone();
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             ui_size = ui.available_size_before_wrap();
@@ -285,8 +290,7 @@ impl eframe::App for App {
             self.store.graph.draw(
                 ui,
                 &self.store.transform,
-                load_tx,
-                remove_tx,
+                sender2,
                 &self.store.layout_params,
                 &mut self.store.annotations,
             );

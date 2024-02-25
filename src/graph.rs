@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     f32::consts::PI,
-    fmt::Write,
+    fmt::Write, sync::mpsc::Sender,
 };
 
 use eframe::epaint::TextShape;
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     annotations::Annotations,
-    app::{push_history_state, LayoutParams},
+    app::{push_history_state, LayoutParams, Update},
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
     components::Components,
@@ -162,6 +162,10 @@ impl Graph {
         self.nodes.contains_key(&txid)
     }
 
+    pub fn select(&mut self, txid: Txid) {
+        self.selected_node = Some(txid);
+    }
+
     pub fn remove_tx(&mut self, txid: Txid) {
         self.nodes.remove(&txid);
         self.edges
@@ -303,8 +307,7 @@ impl Graph {
         &mut self,
         ui: &egui::Ui,
         transform: &Transform,
-        load_tx: impl Fn(Txid, Pos2),
-        remove_tx: impl Fn(Txid),
+        update_sender: Sender<Update>,
         layout_params: &LayoutParams,
         annotations: &mut Annotations,
     ) {
@@ -396,6 +399,16 @@ impl Graph {
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
+            if Some(*txid) == self.selected_node {
+                let outer_rect = transform.rect_to_screen(*outer_rects.get(txid).unwrap());
+                painter.rect(
+                    outer_rect.expand(style.selected_stroke_width / 2.0),
+                    Rounding::none(),
+                    Color32::TRANSPARENT,
+                    style.selected_tx_stroke()
+                );
+            }
+
             let label = annotations.tx_label(*txid);
             let rect = transform.rect_to_screen(*inner_rects.get(txid).unwrap());
             let response = ui
@@ -439,13 +452,14 @@ impl Graph {
                         ui.close_menu();
                     }
                     if ui.button("Remove").clicked() {
-                        remove_tx(*txid);
+                        update_sender.send(Update::RemoveTx { txid: *txid }).unwrap();
                         ui.close_menu();
                     }
                 });
 
             if response.clicked() {
                 push_history_state(&format!("tx/{}", txid.hex_string()));
+                update_sender.send(Update::SelectTx { txid: *txid }).unwrap();
             }
 
             if response.hovered() {
@@ -507,9 +521,9 @@ impl Graph {
 
                 if response.clicked() {
                     if txids.contains(&input.funding_txid) {
-                        remove_tx(input.funding_txid);
+                        update_sender.send(Update::RemoveTx { txid: input.funding_txid }).unwrap();
                     } else {
-                        load_tx(input.funding_txid, rect.left_center() - initial_dist);
+                        update_sender.send(Update::LoadOrSelectTx { txid: input.funding_txid, pos: rect.left_center() - initial_dist }).unwrap();
                     }
                 }
 
@@ -600,9 +614,9 @@ impl Graph {
                 {
                     if response.clicked() {
                         if txids.contains(spending_txid) {
-                            remove_tx(*spending_txid);
+                            update_sender.send(Update::RemoveTx { txid: *spending_txid }).unwrap();
                         } else {
-                            load_tx(*spending_txid, rect.right_center() + initial_dist);
+                            update_sender.send(Update::LoadOrSelectTx { txid: *spending_txid, pos: rect.right_center() + initial_dist }).unwrap();
                         }
                     }
                 }
