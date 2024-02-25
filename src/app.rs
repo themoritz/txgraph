@@ -181,7 +181,7 @@ impl eframe::App for App {
         };
 
         let load_tx = |txid: Txid, pos: Pos2| {
-            let request = ehttp::Request::get(format!("https://txgraph.info/tx/{}", txid));
+            let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
             sender.send(Update::Loading).unwrap();
 
             let ctx = ctx.clone();
