@@ -25,6 +25,7 @@ use crate::{
 pub struct Graph {
     nodes: HashMap<Txid, DrawableNode>,
     edges: Vec<DrawableEdge>,
+    selected_node: Option<Txid>,
     components: Components,
 }
 
@@ -135,6 +136,7 @@ impl Default for Graph {
         Self {
             nodes: HashMap::new(),
             edges: Vec::new(),
+            selected_node: None,
             components: Components::new(),
         }
     }
@@ -154,6 +156,10 @@ impl Graph {
     fn add_edge(&mut self, edge: DrawableEdge) {
         self.components.connect(edge.source, edge.target);
         self.edges.push(edge);
+    }
+
+    pub fn contains_tx(&self, txid: Txid) -> bool {
+        self.nodes.contains_key(&txid)
     }
 
     pub fn remove_tx(&mut self, txid: Txid) {

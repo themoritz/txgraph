@@ -66,6 +66,10 @@ impl Default for LayoutParams {
 }
 
 pub enum Update {
+    LoadOrSelectTx {
+        txid: Txid,
+        pos: Pos2,
+    },
     AddTx {
         txid: Txid,
         tx: Transaction,
@@ -85,7 +89,6 @@ pub struct App {
     store: AppStore,
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
-    loadtx_receiver: Receiver<Txid>,
     err: String,
     err_open: bool,
     loading: usize,
@@ -141,14 +144,13 @@ impl App {
         };
 
         let (update_sender, update_receiver) = channel();
-        let (loadtx_sender, loadtx_receiver) = channel();
 
         let update_sender2 = update_sender.clone();
         let closure = Closure::new(move |url: String| {
             if let Some(txid) = url.strip_prefix("/tx/") {
                 match Txid::new(txid) {
                     Ok(txid) => {
-                        loadtx_sender.send(txid).unwrap();
+                        update_sender2.send(Update::LoadOrSelectTx { txid, pos: Pos2::new(0.0, 0.0) }).unwrap();
                     }
                     Err(err) => {
                         update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
@@ -166,7 +168,6 @@ impl App {
             store,
             update_sender,
             update_receiver,
-            loadtx_receiver,
             err: String::new(),
             err_open: false,
             loading: 0,
@@ -176,6 +177,44 @@ impl App {
 
     pub fn apply_update(&mut self, update: Update) {
         match update {
+            Update::LoadOrSelectTx { txid, pos } => {
+                if self.store.graph.contains_tx(txid) {
+                    return;
+                }
+
+                let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
+                self.update_sender.send(Update::Loading).unwrap();
+
+                let sender = self.update_sender.clone();
+
+                ehttp::fetch(request, move |response| {
+                    sender.send(Update::LoadingDone).unwrap();
+                    let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
+                    match response {
+                        Ok(response) => {
+                            if response.status == 200 {
+                                if let Some(text) = response.text() {
+                                    match serde_json::from_str(text) {
+                                        Ok(tx) => {
+                                            sender.send(Update::AddTx { txid, tx, pos }).unwrap();
+                                        }
+                                        Err(err) => {
+                                            error(err.to_string());
+                                        }
+                                    }
+                                } else {
+                                    error("No text body response".to_string());
+                                }
+                            } else {
+                                error(response.text().map_or("".to_string(), |t| t.to_owned()));
+                            }
+                        }
+                        Err(err) => {
+                            error(err);
+                        }
+                    }
+                });
+            }
             Update::AddTx { txid, tx, pos } => {
                 self.store.graph.add_tx(txid, tx, pos);
             }
@@ -213,47 +252,8 @@ impl eframe::App for App {
         };
 
         let load_tx = |txid: Txid, pos: Pos2| {
-            let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
-            sender.send(Update::Loading).unwrap();
-
-            let ctx = ctx.clone();
-            let sender = sender.clone();
-
-            ehttp::fetch(request, move |response| {
-                sender.send(Update::LoadingDone).unwrap();
-                let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
-                match response {
-                    Ok(response) => {
-                        if response.status == 200 {
-                            if let Some(text) = response.text() {
-                                match serde_json::from_str(text) {
-                                    Ok(tx) => {
-                                        sender.send(Update::AddTx { txid, tx, pos }).unwrap();
-                                    }
-                                    Err(err) => {
-                                        error(err.to_string());
-                                    }
-                                }
-                            } else {
-                                error("No text body response".to_string());
-                            }
-                        } else {
-                            error(response.text().map_or("".to_string(), |t| t.to_owned()));
-                        }
-                    }
-                    Err(err) => {
-                        error(err);
-                    }
-                }
-                ctx.request_repaint();
-            });
+            sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
-
-        match self.loadtx_receiver.try_recv() {
-            Ok(txid) => load_tx(txid, Pos2::new(0.0, 0.0)),
-            Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
-        }
 
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
         ctx.request_repaint();
