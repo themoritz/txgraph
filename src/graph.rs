@@ -422,7 +422,7 @@ impl Graph {
             let label = annotations.tx_label(*txid);
             let rect = transform.rect_to_screen(*inner_rects.get(txid).unwrap());
             let response = ui
-                .interact(rect, ui.id().with(txid), Sense::drag())
+                .interact(rect, ui.id().with(txid), Sense::click_and_drag())
                 .on_hover_ui(|ui| {
                     let format = TextFormat {
                         font_id: style.font_id(),
@@ -446,8 +446,8 @@ impl Graph {
                         format.clone(),
                     );
                     ui.label(job);
-                })
-                .context_menu(|ui| {
+                });
+            response.context_menu(|ui| {
                     ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
                     ui.menu_button("Export to Clipboard", |ui| {
                         if ui.button("Beancount").clicked() {
@@ -526,8 +526,8 @@ impl Graph {
                         newline(&mut job, &FontId::monospace(5.0));
                         txid_layout(&mut job, &input.funding_txid, &style);
                         ui.label(job);
-                    })
-                    .context_menu(|ui| annotations.coin_menu(coin, ui));
+                    });
+                response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
                 if response.clicked() {
                     if txids.contains(&input.funding_txid) {
@@ -556,7 +556,7 @@ impl Graph {
 
                 let rect = *output_rects.get(&(*txid, o)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
-                let mut response = ui
+                let response = ui
                     .interact(screen_rect, id.with(o), Sense::click())
                     .on_hover_ui(|ui| match &output.output_type {
                         OutputType::Utxo {
@@ -612,7 +612,7 @@ impl Graph {
                 match output.output_type {
                     OutputType::Fees => {}
                     _ => {
-                        response = response.context_menu(|ui| annotations.coin_menu(coin, ui));
+                        response.context_menu(|ui| annotations.coin_menu(coin, ui));
                     }
                 }
 
@@ -733,7 +733,7 @@ fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
 
 pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> TextShape {
     let galley = ui.fonts(|f| f.layout_job(job));
-    let mut shape = TextShape::new(pos, galley);
+    let mut shape = TextShape::new(pos, galley, Color32::TRANSPARENT);
     shape.angle = angle;
     shape
 }
