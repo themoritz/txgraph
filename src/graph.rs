@@ -12,13 +12,7 @@ use egui::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    annotations::Annotations,
-    app::{push_history_state, LayoutParams, Update},
-    bezier::Edge,
-    bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
-    components::Components,
-    export, style::{self, Style},
-    transform::Transform,
+    annotations::Annotations, app::{push_history_state, Update}, bezier::Edge, bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid}, components::Components, export, layout::{Layout, Scale}, style::{self, Style}, transform::Transform
 };
 
 #[derive(Serialize, Deserialize)]
@@ -44,6 +38,40 @@ pub struct DrawableNode {
 }
 
 impl DrawableNode {
+    fn scale(&mut self, scale: &Scale) {
+        self.height = scale.apply(self.tx_value) as f32;
+
+        let input_height: f32 = self
+            .inputs
+            .iter()
+            .map(|input| scale.apply(input.value) as f32)
+            .sum();
+
+        let output_height: f32  = self
+            .outputs
+            .iter()
+            .map(|output| scale.apply(output.value) as f32)
+            .sum();
+
+        let mut bot = 0.0;
+
+        for i in &mut self.inputs {
+            let h = scale.apply(i.value) as f32 * self.height / input_height;
+            i.top = bot;
+            bot += h;
+            i.bot = bot;
+        }
+
+        bot = 0.0;
+
+        for o in &mut self.outputs {
+            let h = scale.apply(o.value) as f32 * self.height / output_height;
+            o.top = bot;
+            bot += h;
+            o.bot = bot;
+        }
+    }
+
     fn export_beancount(&self, txid: &Txid, label: Option<String>) -> String {
         let mut s = String::new();
         writeln!(
@@ -180,32 +208,14 @@ impl Graph {
 
     pub fn add_tx(&mut self, txid: Txid, tx: Transaction, pos: Pos2) {
         // Add node
-        fn scale(value: u64) -> f32 {
-            f32::powf(value as f32, 1.0 / 3.0).round() / 10.0
-        }
-
-        let height = scale(tx.amount());
-
-        let input_height: f32 = tx.inputs.iter().map(|input| scale(input.value)).sum();
-
-        let output_height = tx
-            .outputs
-            .iter()
-            .map(|output| scale(output.value))
-            .sum::<f32>()
-            + scale(tx.fees());
-
-        let mut bot = 0.0;
 
         let inputs = tx
             .inputs
             .iter()
             .map(|i| {
-                let h = scale(i.value) * height / input_height;
-                bot += h;
                 DrawableInput {
-                    top: bot - h,
-                    bot,
+                    top: 0.0,
+                    bot: 0.0,
                     value: i.value,
                     address: i.address.clone(),
                     address_type: i.address_type,
@@ -215,17 +225,13 @@ impl Graph {
             })
             .collect();
 
-        bot = 0.0;
-
         let mut outputs: Vec<DrawableOutput> = tx
             .outputs
             .iter()
             .map(|o| {
-                let h = scale(o.value) * height / output_height;
-                bot += h;
                 DrawableOutput {
-                    top: bot - h,
-                    bot,
+                    top: 0.0,
+                    bot: 0.0,
                     value: o.value,
                     output_type: match o.spending_txid {
                         None => OutputType::Utxo {
@@ -245,8 +251,8 @@ impl Graph {
         // Coinbase txs don't have fees
         if !tx.is_coinbase() {
             outputs.push(DrawableOutput {
-                top: bot,
-                bot: bot + scale(tx.fees()) * height / output_height,
+                top: 0.0,
+                bot: 0.0,
                 value: tx.fees(),
                 output_type: OutputType::Fees,
             });
@@ -258,7 +264,7 @@ impl Graph {
                 pos,
                 velocity: Vec2::new(0.0, 0.0),
                 dragged: false,
-                height,
+                height: 0.0,
                 tx_value: tx.amount(),
                 tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
                     .unwrap()
@@ -308,10 +314,14 @@ impl Graph {
         ui: &egui::Ui,
         transform: &Transform,
         update_sender: Sender<Update>,
-        layout_params: &LayoutParams,
+        layout: &Layout,
         annotations: &mut Annotations,
     ) {
         let style = style::get(ui);
+
+        for node in self.nodes.values_mut() {
+            node.scale(&layout.scale);
+        }
 
         // PREPARE RECTS //
 
@@ -403,7 +413,7 @@ impl Graph {
                 let outer_rect = transform.rect_to_screen(*outer_rects.get(txid).unwrap());
                 painter.rect(
                     outer_rect.expand(style.selected_stroke_width / 2.0),
-                    Rounding::none(),
+                    Rounding::ZERO,
                     Color32::TRANSPARENT,
                     style.selected_tx_stroke()
                 );
@@ -477,7 +487,7 @@ impl Graph {
 
             painter.rect(
                 rect,
-                Rounding::none(),
+                Rounding::ZERO,
                 annotations.tx_color(*txid).unwrap_or(style.tx_bg).gamma_multiply(0.4),
                 style.tx_stroke()
             );
@@ -529,7 +539,7 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::none(),
+                    Rounding::ZERO,
                     annotations
                         .coin_color(coin)
                         .unwrap_or(style.io_bg)
@@ -623,7 +633,7 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::none(),
+                    Rounding::ZERO,
                     match output.output_type {
                         OutputType::Utxo {
                             address: _,
@@ -656,7 +666,7 @@ impl Graph {
 
         // CALCULATE FORCES AND UPDATE VELOCITY //
 
-        let scale2 = layout_params.scale * layout_params.scale;
+        let scale2 = layout.force_params.scale * layout.force_params.scale;
 
         for (txid, rect) in &outer_rects {
             for (other_txid, other_rect) in &outer_rects {
@@ -666,13 +676,13 @@ impl Graph {
                 let diff = other_rect.center() - rect.center();
                 let spacing = clear_spacing(rect, other_rect);
                 let force =
-                    -scale2 / spacing.powf(layout_params.tx_repulsion_dropoff) * diff.normalized();
+                    -scale2 / spacing.powf(layout.force_params.tx_repulsion_dropoff) * diff.normalized();
 
                 // Repulsion does not apply across connected components if the nodes aren't close to each other.
                 if self.components.connected(*txid, *other_txid)
-                    || spacing <= 0.5 * layout_params.scale
+                    || spacing <= 0.5 * layout.force_params.scale
                 {
-                    self.nodes.get_mut(txid).unwrap().velocity += force * layout_params.dt;
+                    self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
                 }
             }
         }
@@ -691,25 +701,25 @@ impl Graph {
 
             // Attraction force between nodes
             let diff = to_rect.left_center() - from_rect.right_center();
-            let mut force = diff.length_sq() / layout_params.scale * diff.normalized();
-            force.y *= layout_params.y_compress;
+            let mut force = diff.length_sq() / layout.force_params.scale * diff.normalized();
+            force.y *= layout.force_params.y_compress;
 
             // Repulsion force between layers
             force -= Vec2::new(scale2 / diff.x.max(2.0), 0.0);
 
             // Take edge multiplicity into account
-            force = force / edge_multiplicities[&(edge.source, edge.target)] as f32;
+            force /= edge_multiplicities[&(edge.source, edge.target)] as f32;
 
-            self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout_params.dt;
-            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout_params.dt;
+            self.nodes.get_mut(&edge.source).unwrap().velocity += force * layout.force_params.dt;
+            self.nodes.get_mut(&edge.target).unwrap().velocity -= force * layout.force_params.dt;
         }
 
         // UPDATE POSITIONS //
 
         for node in self.nodes.values_mut() {
-            node.velocity *= layout_params.cooloff;
+            node.velocity *= layout.force_params.cooloff;
             if !node.dragged {
-                node.pos += node.velocity * layout_params.dt;
+                node.pos += node.velocity * layout.force_params.dt;
             }
         }
     }

@@ -26,6 +26,7 @@ impl Transform {
         Pos2::new((pos.x - self.t_x) / self.z, (pos.y - self.t_y) / self.z)
     }
 
+    #[allow(dead_code)]
     pub fn vec_to_screen(&self, vec: Vec2) -> Vec2 {
         Vec2::new(vec.x * self.z, vec.y * self.z)
     }

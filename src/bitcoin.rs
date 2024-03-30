@@ -124,6 +124,7 @@ pub struct AmountComponents {
 }
 
 impl Sats {
+    #[allow(clippy::inconsistent_digit_grouping)]
     pub fn components(&self) -> AmountComponents {
         let btc = self.0 / 1_00_000_000;
         let mut rem = self.0 % 1_00_000_000;
@@ -174,20 +175,20 @@ impl Display for Sats {
                 write!(f, ",{:03}", amount)?;
             }
 
-            write!(f, "'")?;
+            write!(f, ".")?;
         }
 
         if started {
-            write!(f, "{:02},", msats.unwrap_or(0))?;
+            write!(f, "{:02} ", msats.unwrap_or(0))?;
         } else if let Some(m) = msats {
-            write!(f, "{},", m)?;
+            write!(f, "{} ", m)?;
             started = true;
         }
 
         if started {
-            write!(f, "{:03},", ksats.unwrap_or(0))?;
+            write!(f, "{:03} ", ksats.unwrap_or(0))?;
         } else if let Some(k) = ksats {
-            write!(f, "{},", k)?;
+            write!(f, "{} ", k)?;
             started = true
         }
 
@@ -201,6 +202,7 @@ impl Display for Sats {
     }
 }
 
+#[allow(dead_code)]
 pub fn dummy_transactions() -> HashMap<Txid, Transaction> {
     let z = Txid::new("97ddfbbae6be97fd6cdf3e7ca13232a3affa2353e29badfab7f73011edd4ced9").unwrap();
     let a = Txid::new("97ddfbbae6be97fd6cdf3e7ca13232a3afff2353e29badfab7f73011edd4ced9").unwrap();
@@ -290,14 +292,15 @@ mod tests {
     use crate::bitcoin::{Sats, Txid};
 
     #[test]
+    #[allow(clippy::inconsistent_digit_grouping)]
     fn sats() {
         let cases = vec![
             (42, "42"),
-            (5_001, "5,001"),
-            (19_010_020, "19,010,020"),
-            (1_00_000_000, "1'00,000,000"),
-            (4_001_01_123_456, "4,001'01,123,456"),
-            (1_000_000_00_000_000, "1,000,000'00,000,000"),
+            (5_001, "5 001"),
+            (19_010_020, "19 010 020"),
+            (1_00_000_000, "1.00 000 000"),
+            (4_001_01_123_456, "4,001.01 123 456"),
+            (1_000_000_00_000_000, "1,000,000.00 000 000"),
         ];
 
         for case in cases {

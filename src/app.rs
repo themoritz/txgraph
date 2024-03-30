@@ -1,10 +1,10 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Grid, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{Button, CursorIcon, Frame, Pos2, Sense, TextEdit, TextStyle, Vec2};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
-    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, graph::Graph, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
+    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, graph::Graph, layout::Layout, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -12,7 +12,7 @@ use crate::{
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     tx: String,
-    layout_params: LayoutParams,
+    layout: Layout,
     graph: Graph,
     transform: Transform,
     annotations: Annotations,
@@ -29,33 +29,11 @@ impl Default for AppStore {
     fn default() -> Self {
         AppStore {
             tx: "".to_owned(),
-            layout_params: Default::default(),
+            layout: Default::default(),
             graph: Default::default(),
             transform: Default::default(),
             annotations: Default::default(),
             theme: Default::default(),
-        }
-    }
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct LayoutParams {
-    pub scale: f32,
-    pub dt: f32,
-    pub cooloff: f32,
-    pub y_compress: f32,
-    pub tx_repulsion_dropoff: f32,
-}
-
-impl Default for LayoutParams {
-    fn default() -> Self {
-        Self {
-            scale: 80.0,
-            dt: 0.08,
-            cooloff: 0.85,
-            y_compress: 2.0,
-            tx_repulsion_dropoff: 1.2,
         }
     }
 }
@@ -299,7 +277,7 @@ impl eframe::App for App {
                 ui,
                 &self.store.transform,
                 sender2,
-                &self.store.layout_params,
+                &self.store.layout,
                 &mut self.store.annotations,
             );
         });
@@ -504,43 +482,8 @@ impl eframe::App for App {
                     }
                 });
 
-            ui.collapsing("Layout Parameters", |ui| {
-                Grid::new("Layout").num_columns(2).show(ui, |ui| {
-                    ui.label("Scale:");
-                    ui.add(egui::Slider::new(
-                        &mut self.store.layout_params.scale,
-                        5.0..=200.0,
-                    ));
-                    ui.end_row();
-
-                    ui.label("Y Compress:");
-                    ui.add(egui::Slider::new(
-                        &mut self.store.layout_params.y_compress,
-                        1.0..=5.0,
-                    ));
-                    ui.end_row();
-
-                    ui.label("Tx repulsion factor:");
-                    ui.add(egui::Slider::new(
-                        &mut self.store.layout_params.tx_repulsion_dropoff,
-                        0.5..=2.0,
-                    ));
-                    ui.end_row();
-
-                    ui.label("Speed:");
-                    ui.add(egui::Slider::new(
-                        &mut self.store.layout_params.dt,
-                        0.001..=0.2,
-                    ));
-                    ui.end_row();
-
-                    ui.label("Cooloff:");
-                    ui.add(egui::Slider::new(
-                        &mut self.store.layout_params.cooloff,
-                        0.5..=0.99,
-                    ));
-                    ui.end_row();
-                });
+            ui.collapsing("Layout", |ui| {
+                self.store.layout.ui(ui);
             });
 
             ui.add_space(3.0);

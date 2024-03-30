@@ -6,8 +6,8 @@ edition = "2021"
 rust-version = "1.65"
 
 [dependencies]
-egui = "0.21.0"
-eframe = { version = "0.21.0", default-features = false, features = [ "glow", "persistence" ] }
+egui = "0.24.0"
+eframe = { version = "0.24.0", default-features = false, features = [ "glow", "persistence" ] }
 ehttp = "0.2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
