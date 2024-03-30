@@ -169,7 +169,7 @@ impl App {
                 self.update_sender.send(Update::Loading).unwrap();
 
                 let sender = self.update_sender.clone();
-                let center = (self.ui_size / 2.0).to_pos2();
+                let center = self.store.transform.pos_from_screen((self.ui_size / 2.0).to_pos2());
 
                 ehttp::fetch(request, move |response| {
                     sender.send(Update::LoadingDone).unwrap();
