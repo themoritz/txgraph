@@ -82,6 +82,13 @@ extern "C" {
     pub fn push_history_state(url: &str);
 }
 
+pub fn get_viewport_dimensions() -> Option<Vec2> {
+    let window = web_sys::window()?;
+    let width = window.inner_width().ok()?.as_f64()?;
+    let height = window.inner_height().ok()?.as_f64()?;
+    Some(Vec2::new(width as f32, height as f32))
+}
+
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -150,7 +157,7 @@ impl App {
             err: String::new(),
             err_open: false,
             flight: Flight::new(),
-            ui_size: Vec2::ZERO,
+            ui_size: get_viewport_dimensions().unwrap_or_default(),
             loading: 0,
             import_text: String::new(),
         }
@@ -225,6 +232,8 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.ui_size = get_viewport_dimensions().unwrap_or(ctx.screen_rect().size());
+
         let sender = self.update_sender.clone();
 
         let load_tx = |txid: Txid, pos: Option<Pos2>| {
@@ -237,8 +246,6 @@ impl eframe::App for App {
         let sender2 = sender.clone();
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
-            self.ui_size = ui.available_size_before_wrap();
-
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
                 Sense::click_and_drag().union(Sense::hover()),
