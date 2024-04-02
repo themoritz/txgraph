@@ -14,3 +14,7 @@ function addRouteListener(callback) {
 function pushHistoryState(url) {
   window.history.pushState({}, '', url);
 }
+
+function getRandom() {
+  return Math.random()
+}

@@ -316,7 +316,7 @@ impl Graph {
         update_sender: Sender<Update>,
         layout: &Layout,
         annotations: &mut Annotations,
-    ) {
+    ) -> Response {
         let style = style::get(ui);
 
         for node in self.nodes.values_mut() {
@@ -716,13 +716,24 @@ impl Graph {
 
         // UPDATE POSITIONS //
 
+        let mut layout_changed = false;
+
         for node in self.nodes.values_mut() {
             node.velocity *= layout.force_params.cooloff;
+            if node.velocity.length() > 0.2 {
+                layout_changed = true;
+            }
             if !node.dragged {
                 node.pos += node.velocity * layout.force_params.dt;
             }
         }
+
+        Response { layout_changed }
     }
+}
+
+pub struct Response {
+    pub layout_changed: bool,
 }
 
 fn clear_spacing(a: &Rect, b: &Rect) -> f32 {

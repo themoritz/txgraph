@@ -80,6 +80,9 @@ extern "C" {
 
     #[wasm_bindgen(js_name = pushHistoryState)]
     pub fn push_history_state(url: &str);
+
+    #[wasm_bindgen(js_name = getRandom)]
+    fn get_random() -> f64;
 }
 
 pub fn get_viewport_dimensions() -> Option<Vec2> {
@@ -89,13 +92,16 @@ pub fn get_viewport_dimensions() -> Option<Vec2> {
     Some(Vec2::new(width as f32, height as f32))
 }
 
+pub fn get_random_vec2(range: f32) -> Vec2 {
+    Vec2::new(
+        get_random() as f32 * range - range / 2.0,
+        get_random() as f32 * range - range / 2.0
+    )
+}
+
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-        cc.egui_ctx.set_visuals(egui::Visuals::light());
-
         let mut fonts = egui::FontDefinitions::empty();
         fonts.font_data.insert(
             "btc".to_owned(),
@@ -131,11 +137,13 @@ impl App {
         let (update_sender, update_receiver) = channel();
 
         let update_sender2 = update_sender.clone();
+        let ctx = cc.egui_ctx.clone();
         let closure = Closure::new(move |url: String| {
             if let Some(txid) = url.strip_prefix("/tx/") {
                 match Txid::new(txid) {
                     Ok(txid) => {
                         update_sender2.send(Update::LoadOrSelectTx { txid, pos: None }).unwrap();
+                        ctx.request_repaint();
                     }
                     Err(err) => {
                         update_sender2.send(Update::Error { err: format!("{}: {}", url, err) }).unwrap();
@@ -176,7 +184,7 @@ impl App {
                 self.update_sender.send(Update::Loading).unwrap();
 
                 let sender = self.update_sender.clone();
-                let center = self.store.transform.pos_from_screen((self.ui_size / 2.0).to_pos2());
+                let center = self.store.transform.pos_from_screen((self.ui_size / 2.0 + get_random_vec2(50.0)).to_pos2());
 
                 ehttp::fetch(request, move |response| {
                     sender.send(Update::LoadingDone).unwrap();
@@ -187,8 +195,10 @@ impl App {
                                 if let Some(text) = response.text() {
                                     match serde_json::from_str(text) {
                                         Ok(tx) => {
-                                            let pos = pos.unwrap_or(center);
-                                            sender.send(Update::AddTx { txid, tx, pos }).unwrap();
+                                            sender.send(Update::AddTx { txid, tx, pos: pos.unwrap_or(center) }).unwrap();
+                                            if pos.is_none() {
+                                                sender.send(Update::SelectTx { txid }).unwrap();
+                                            }
                                         }
                                         Err(err) => {
                                             error(err.to_string());
@@ -241,7 +251,6 @@ impl eframe::App for App {
         };
 
         let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
-        ctx.request_repaint();
 
         let sender2 = sender.clone();
 
@@ -254,6 +263,7 @@ impl eframe::App for App {
             if self.flight.is_active() {
                 let delta = self.flight.update();
                 self.store.transform.translate(-delta);
+                ctx.request_repaint();
             }
 
             // Zoom
@@ -280,13 +290,17 @@ impl eframe::App for App {
                 }
             }
 
-            self.store.graph.draw(
+            let response = self.store.graph.draw(
                 ui,
                 &self.store.transform,
                 sender2,
                 &self.store.layout,
                 &mut self.store.annotations,
             );
+
+            if response.layout_changed {
+                ctx.request_repaint();
+            }
         });
 
         egui::Window::new("txgraph.info").show(ctx, |ui| {
