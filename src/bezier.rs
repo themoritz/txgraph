@@ -1,4 +1,7 @@
+use std::f32::consts::TAU;
+
 use egui::{Color32, Mesh, Pos2, Vec2};
+use geo::{polygon, AffineOps, AffineTransform, BooleanOps, Coord, LineString, MultiPolygon, Polygon, TriangulateEarcut};
 
 use crate::transform::Transform;
 
@@ -96,24 +99,44 @@ impl Edge {
             }
         }
 
-        let color = if hovering {
+        let transparent_color = if hovering {
             color.gamma_multiply(0.5)
         } else {
             color.gamma_multiply(0.4)
         };
 
-        let mut mesh = Mesh::default();
-        for n in 1..=steps {
-            let i0 = (n as u32 - 1) * 4;
-            mesh.colored_vertex(tops[n - 1], color);
-            mesh.colored_vertex(tops[n], color);
-            mesh.colored_vertex(bots[n], color);
-            mesh.colored_vertex(bots[n - 1], color);
-            mesh.add_triangle(i0, i0 + 1, i0 + 2);
-            mesh.add_triangle(i0, i0 + 2, i0 + 3);
+        let mut coords = Vec::with_capacity(steps * 2 + 1);
+
+        for top in tops.iter() {
+            coords.push(geo::Coord { x: top.x, y: top.y });
+        }
+        for bot in bots.iter().rev() {
+            coords.push(geo::Coord { x: bot.x, y: bot.y });
         }
 
-        ui.painter().add(mesh);
+        let sankey = Polygon::new(LineString::new(coords), vec![]);
+
+        let mid_start = tops[0] + (bots[0] - tops[0]) / 2.;
+        let mid_end = tops[steps] + (bots[steps] - tops[steps]) / 2.;
+        let mid = mid_start + (mid_end - mid_start) / 2.;
+        let length = (mid_end - mid_start).length();
+        let avg_height = (tops[0].y - bots[0].y).abs().max((tops[steps-1].y - bots[steps-1].y).abs());
+        let angle = (mid_end - mid_start).angle() * 360. / TAU;
+        let transform = AffineTransform::translate(mid.x, mid.y)
+            .rotated(angle, Coord { x: 0.0, y: 0.0 })
+            .scaled(length / 100., avg_height.max(20.) / 100., Coord { x: 0.0, y: 0.0 });
+
+        let arrow = polygon!(
+            (x: 5., y: 0.),
+            (x: -30., y: -100.),
+            (x: -35., y: -100.),
+            (x: 0., y: 0.),
+            (x: -35., y: 100.),
+            (x: -30., y: 100.),
+        ).affine_transform(&transform);
+
+        ui.painter().add(mesh_from_poly(&(sankey.difference(&arrow)), transparent_color));
+        ui.painter().add(mesh_from_poly(&(sankey.intersection(&arrow)), color.gamma_multiply(0.15)));
 
         EdgeResponse { hovering, clicked }
     }
@@ -122,4 +145,24 @@ impl Edge {
 pub struct EdgeResponse {
     pub hovering: bool,
     pub clicked: bool,
+}
+
+fn mesh_from_poly(poly: &MultiPolygon<f32>, color: Color32) -> Mesh {
+    let mut mesh = Mesh::default();
+    let mut offset = 0;
+
+    for p in poly.0.iter() {
+        let triangulation = p.earcut_triangles_raw();
+
+        for t in triangulation.triangle_indices.chunks_exact(3) {
+            mesh.add_triangle(offset + t[0] as u32, offset + t[1] as u32, offset + t[2] as u32);
+        }
+
+        for v in triangulation.vertices.chunks_exact(2) {
+            mesh.colored_vertex(Pos2::new(v[0], v[1]), color);
+            offset += 1;
+        }
+    }
+
+    mesh
 }
