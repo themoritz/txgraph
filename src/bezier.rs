@@ -118,13 +118,16 @@ impl Edge {
 
         let mid_start = tops[0] + (bots[0] - tops[0]) / 2.;
         let mid_end = tops[steps] + (bots[steps] - tops[steps]) / 2.;
-        let mid = mid_start + (mid_end - mid_start) / 2.;
+        let mid_curve = Cubic::sankey(mid_start, mid_end);
+        // let mid = mid_start + (mid_end - mid_start) / 2.;
+        let mid = mid_curve.eval(0.2);
         let length = (mid_end - mid_start).length();
         let avg_height = (tops[0].y - bots[0].y).abs().max((tops[steps-1].y - bots[steps-1].y).abs());
-        let angle = (mid_end - mid_start).angle() * 360. / TAU;
+        // let angle = (mid_end - mid_start).angle() * 360. / TAU;
+        let angle = (mid_curve.eval(0.21) - mid_curve.eval(0.19)).angle() * 360. / TAU;
         let transform = AffineTransform::translate(mid.x, mid.y)
             .rotated(angle, Coord { x: 0.0, y: 0.0 })
-            .scaled(length / 100., avg_height.max(20.) / 100., Coord { x: 0.0, y: 0.0 });
+            .scaled(1.0, avg_height.max(40.) / 100., Coord { x: 0.0, y: 0.0 });
 
         let arrow = polygon!(
             (x: 5., y: 0.),
