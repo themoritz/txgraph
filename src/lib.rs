@@ -7,6 +7,7 @@ mod bitcoin;
 mod components;
 mod export;
 mod flight;
+mod framerate;
 mod graph;
 mod layout;
 mod style;

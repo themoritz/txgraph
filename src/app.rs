@@ -4,7 +4,7 @@ use egui::{Button, CursorIcon, Frame, Pos2, Sense, TextEdit, TextStyle, Vec2};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
-    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, graph::Graph, layout::Layout, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
+    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -71,6 +71,7 @@ pub struct App {
     flight: Flight,
     ui_size: Vec2,
     import_text: String,
+    framerate: FrameRate,
 }
 
 #[wasm_bindgen]
@@ -168,6 +169,7 @@ impl App {
             ui_size: get_viewport_dimensions().unwrap_or_default(),
             loading: 0,
             import_text: String::new(),
+            framerate: FrameRate::default(),
         }
     }
 
@@ -241,8 +243,11 @@ impl eframe::App for App {
         eframe::set_value(storage, eframe::APP_KEY, &self.store);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.ui_size = get_viewport_dimensions().unwrap_or(ctx.screen_rect().size());
+
+        self.framerate
+            .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
 
         let sender = self.update_sender.clone();
 
@@ -505,6 +510,7 @@ impl eframe::App for App {
 
             ui.collapsing("Layout", |ui| {
                 self.store.layout.ui(ui);
+                self.framerate.ui(ui);
             });
 
             ui.add_space(3.0);
