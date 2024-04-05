@@ -61,7 +61,7 @@ impl Edge {
             self.to + Vec2::new(0.0, self.to_height),
         );
 
-        let steps = 30;
+        let steps = 15;
 
         let mut tops = Vec::with_capacity(steps + 1);
         let mut bots = Vec::with_capacity(steps + 1);
@@ -104,8 +104,8 @@ impl Edge {
         };
 
         let start = 0.3;
-        let arrow_width = 2;
-        let arrow_length = 3;
+        let arrow_width = 1;
+        let arrow_length = 4;
         let start_i = (start * steps as f32) as usize;
         let end_i = start_i + arrow_width;
         let m_start_i = start_i + arrow_length;
