@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{Button, CursorIcon, Frame, Key, Pos2, Sense, TextEdit, TextStyle, Vec2};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
@@ -278,6 +278,12 @@ impl eframe::App for App {
                     self.store.transform.zoom(zoom_delta, hover_pos);
                     self.flight.interrupt();
                 }
+
+                let scroll_delta = ui.input(|i| i.smooth_scroll_delta);
+                if scroll_delta.y != 0.0 {
+                    self.store.transform.zoom(1.0 + scroll_delta.y / 200.0, hover_pos);
+                    self.flight.interrupt();
+                }
             }
 
             // Drag
@@ -285,6 +291,25 @@ impl eframe::App for App {
                 response = response.on_hover_cursor(CursorIcon::Grabbing);
                 self.store.transform.translate(response.drag_delta());
                 self.flight.interrupt();
+            }
+
+            let mut pan = Vec2::ZERO;
+            if ui.input(|i| i.key_down(Key::ArrowDown)) {
+                pan += Vec2::DOWN;
+            }
+            if ui.input(|i| i.key_down(Key::ArrowUp)) {
+                pan += Vec2::UP;
+            }
+            if ui.input(|i| i.key_down(Key::ArrowLeft)) {
+                pan += Vec2::LEFT;
+            }
+            if ui.input(|i| i.key_down(Key::ArrowRight)) {
+                pan += Vec2::RIGHT;
+            }
+            if pan != Vec2::ZERO {
+                self.store.transform.translate(pan * 2.);
+                self.flight.interrupt();
+                ctx.request_repaint();
             }
 
             loop {
