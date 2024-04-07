@@ -134,7 +134,7 @@ impl Edge {
 
         mesh.colored_vertex(tops[end_i], color);
         mesh.colored_vertex(bots[end_i], color);
-        for n in end_i+1..=m_end_i+1 {
+        for n in end_i + 1..=m_end_i + 1 {
             let i0 = tip_i + (n - end_i) as u32 * 2;
             mesh.colored_vertex(tops[n], color);
             mesh.colored_vertex(bots[n], color);
@@ -145,7 +145,7 @@ impl Edge {
         let last = mesh.vertices.len() as u32 - 1;
         mesh.add_triangle(tip_i, last, last - 1);
 
-        for n in m_end_i+2..=steps {
+        for n in m_end_i + 2..=steps {
             let i0 = last + (n - m_end_i - 2) as u32 * 2;
             mesh.colored_vertex(tops[n], color);
             mesh.colored_vertex(bots[n], color);

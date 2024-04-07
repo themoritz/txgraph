@@ -22,10 +22,12 @@ impl Widget for BulletPoint {
 
         let dot = WidgetText::from("•").into_galley(ui, None, 5.0, TextStyle::Body);
         let dot_pos = Pos2::new(rect.min.x + 0.5 * extra - 0.5 * dot.size().x, rect.top());
-        ui.painter().galley(dot_pos, dot, ui.style().noninteractive().text_color());
+        ui.painter()
+            .galley(dot_pos, dot, ui.style().noninteractive().text_color());
 
         let text_pos = Pos2::new(rect.min.x + extra, rect.top());
-        ui.painter().galley(text_pos, text, ui.style().noninteractive().text_color());
+        ui.painter()
+            .galley(text_pos, text, ui.style().noninteractive().text_color());
 
         response
     }

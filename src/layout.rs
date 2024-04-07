@@ -45,38 +45,23 @@ impl ForceParams {
 
         Grid::new("Layout").num_columns(2).show(ui, |ui| {
             ui.label("Scale:");
-            ui.add(egui::Slider::new(
-                &mut self.scale,
-                5.0..=200.0,
-            ));
+            ui.add(egui::Slider::new(&mut self.scale, 5.0..=200.0));
             ui.end_row();
 
             ui.label("Y Compress:");
-            ui.add(egui::Slider::new(
-                &mut self.y_compress,
-                1.0..=5.0,
-            ));
+            ui.add(egui::Slider::new(&mut self.y_compress, 1.0..=5.0));
             ui.end_row();
 
             ui.label("Tx repulsion factor:");
-            ui.add(egui::Slider::new(
-                &mut self.tx_repulsion_dropoff,
-                0.5..=2.0,
-            ));
+            ui.add(egui::Slider::new(&mut self.tx_repulsion_dropoff, 0.5..=2.0));
             ui.end_row();
 
             ui.label("Speed:");
-            ui.add(egui::Slider::new(
-                &mut self.dt,
-                0.001..=0.2,
-            ));
+            ui.add(egui::Slider::new(&mut self.dt, 0.001..=0.2));
             ui.end_row();
 
             ui.label("Cooloff:");
-            ui.add(egui::Slider::new(
-                &mut self.cooloff,
-                0.5..=0.99,
-            ));
+            ui.add(egui::Slider::new(&mut self.cooloff, 0.5..=0.99));
             ui.end_row();
         });
     }
@@ -121,7 +106,7 @@ impl Scale {
                 egui::Slider::new(&mut self.x1, 10_000..=100_000_00_000_000)
                     .custom_formatter(|x, _| format!("{}", Sats(x as u64)))
                     .logarithmic(true)
-                    .text("sats")
+                    .text("sats"),
             );
             ui.end_row();
 
@@ -134,7 +119,7 @@ impl Scale {
                 egui::Slider::new(&mut self.x2, 10_000..=100_000_00_000_000)
                     .custom_formatter(|x, _| format!("{}", Sats(x as u64)))
                     .logarithmic(true)
-                    .text("sats")
+                    .text("sats"),
             );
             ui.end_row();
 

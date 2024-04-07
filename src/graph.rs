@@ -1,17 +1,22 @@
-use std::{
-    collections::HashMap,
-    f32::consts::PI,
-    fmt::Write, sync::mpsc::Sender,
-};
+use std::{collections::HashMap, f32::consts::PI, fmt::Write, sync::mpsc::Sender};
 
 use eframe::epaint::TextShape;
 use egui::{
-    ahash::HashSet, show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId, Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Vec2
+    ahash::HashSet, show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId,
+    Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    annotations::Annotations, app::{push_history_state, Update}, bezier::Edge, bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid}, components::Components, export, layout::{Layout, Scale}, style::{self, Style}, transform::Transform
+    annotations::Annotations,
+    app::{push_history_state, Update},
+    bezier::Edge,
+    bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
+    components::Components,
+    export,
+    layout::{Layout, Scale},
+    style::{self, Style},
+    transform::Transform,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -46,7 +51,7 @@ impl DrawableNode {
             .map(|input| scale.apply(input.value) as f32)
             .sum();
 
-        let output_height: f32  = self
+        let output_height: f32 = self
             .outputs
             .iter()
             .map(|output| scale.apply(output.value) as f32)
@@ -211,39 +216,35 @@ impl Graph {
         let inputs = tx
             .inputs
             .iter()
-            .map(|i| {
-                DrawableInput {
-                    top: 0.0,
-                    bot: 0.0,
-                    value: i.value,
-                    address: i.address.clone(),
-                    address_type: i.address_type,
-                    funding_txid: i.txid,
-                    funding_vout: i.vout,
-                }
+            .map(|i| DrawableInput {
+                top: 0.0,
+                bot: 0.0,
+                value: i.value,
+                address: i.address.clone(),
+                address_type: i.address_type,
+                funding_txid: i.txid,
+                funding_vout: i.vout,
             })
             .collect();
 
         let mut outputs: Vec<DrawableOutput> = tx
             .outputs
             .iter()
-            .map(|o| {
-                DrawableOutput {
-                    top: 0.0,
-                    bot: 0.0,
-                    value: o.value,
-                    output_type: match o.spending_txid {
-                        None => OutputType::Utxo {
-                            address: o.address.clone(),
-                            address_type: o.address_type,
-                        },
-                        Some(txid) => OutputType::Spent {
-                            spending_txid: txid,
-                            address: o.address.clone(),
-                            address_type: o.address_type,
-                        },
+            .map(|o| DrawableOutput {
+                top: 0.0,
+                bot: 0.0,
+                value: o.value,
+                output_type: match o.spending_txid {
+                    None => OutputType::Utxo {
+                        address: o.address.clone(),
+                        address_type: o.address_type,
                     },
-                }
+                    Some(txid) => OutputType::Spent {
+                        spending_txid: txid,
+                        address: o.address.clone(),
+                        address_type: o.address_type,
+                    },
+                },
             })
             .collect();
 
@@ -415,7 +416,7 @@ impl Graph {
                     outer_rect.expand(style.selected_stroke_width / 2.0),
                     Rounding::ZERO,
                     Color32::TRANSPARENT,
-                    style.selected_tx_stroke()
+                    style.selected_tx_stroke(),
                 );
             }
 
@@ -448,28 +449,32 @@ impl Graph {
                     ui.label(job);
                 });
             response.context_menu(|ui| {
-                    ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
-                    ui.menu_button("Export to Clipboard", |ui| {
-                        if ui.button("Beancount").clicked() {
-                            ui.ctx().output_mut(|o| {
-                                o.copied_text = node.export_beancount(txid, label.clone())
-                            });
-                            ui.close_menu();
-                        }
-                    });
-                    if ui.button("Copy Txid").clicked() {
-                        ui.output_mut(|o| o.copied_text = txid.hex_string());
-                        ui.close_menu();
-                    }
-                    if ui.button("Remove").clicked() {
-                        update_sender.send(Update::RemoveTx { txid: *txid }).unwrap();
+                ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
+                ui.menu_button("Export to Clipboard", |ui| {
+                    if ui.button("Beancount").clicked() {
+                        ui.ctx().output_mut(|o| {
+                            o.copied_text = node.export_beancount(txid, label.clone())
+                        });
                         ui.close_menu();
                     }
                 });
+                if ui.button("Copy Txid").clicked() {
+                    ui.output_mut(|o| o.copied_text = txid.hex_string());
+                    ui.close_menu();
+                }
+                if ui.button("Remove").clicked() {
+                    update_sender
+                        .send(Update::RemoveTx { txid: *txid })
+                        .unwrap();
+                    ui.close_menu();
+                }
+            });
 
             if response.clicked() {
                 push_history_state(&format!("tx/{}", txid.hex_string()));
-                update_sender.send(Update::SelectTx { txid: *txid }).unwrap();
+                update_sender
+                    .send(Update::SelectTx { txid: *txid })
+                    .unwrap();
             }
 
             if response.hovered() {
@@ -488,14 +493,23 @@ impl Graph {
             painter.rect(
                 rect,
                 Rounding::ZERO,
-                annotations.tx_color(*txid).unwrap_or(style.tx_bg).gamma_multiply(0.4),
-                style.tx_stroke()
+                annotations
+                    .tx_color(*txid)
+                    .unwrap_or(style.tx_bg)
+                    .gamma_multiply(0.4),
+                style.tx_stroke(),
             );
 
             let tx_painter = painter.with_clip_rect(rect);
             tx_painter.add(rotated_layout(
                 ui,
-                tx_content(txid, &label, &node.tx_timestamp, &Sats(node.tx_value), &style),
+                tx_content(
+                    txid,
+                    &label,
+                    &node.tx_timestamp,
+                    &Sats(node.tx_value),
+                    &style,
+                ),
                 rect.right_top() + Vec2::new(-1.0, 2.0),
                 PI / 2.0,
             ));
@@ -531,9 +545,18 @@ impl Graph {
 
                 if response.clicked() {
                     if txids.contains(&input.funding_txid) {
-                        update_sender.send(Update::RemoveTx { txid: input.funding_txid }).unwrap();
+                        update_sender
+                            .send(Update::RemoveTx {
+                                txid: input.funding_txid,
+                            })
+                            .unwrap();
                     } else {
-                        update_sender.send(Update::LoadOrSelectTx { txid: input.funding_txid, pos: Some(rect.left_center() - initial_dist) }).unwrap();
+                        update_sender
+                            .send(Update::LoadOrSelectTx {
+                                txid: input.funding_txid,
+                                pos: Some(rect.left_center() - initial_dist),
+                            })
+                            .unwrap();
                     }
                 }
 
@@ -548,7 +571,11 @@ impl Graph {
                 );
 
                 if loading_txids.contains(&input.funding_txid) {
-                    rect_striped(ui, screen_rect, style.black_text_color().gamma_multiply(0.1));
+                    rect_striped(
+                        ui,
+                        screen_rect,
+                        style.black_text_color().gamma_multiply(0.1),
+                    );
                     ui.ctx().request_repaint();
                 }
 
@@ -636,9 +663,18 @@ impl Graph {
                 {
                     if response.clicked() {
                         if txids.contains(spending_txid) {
-                            update_sender.send(Update::RemoveTx { txid: *spending_txid }).unwrap();
+                            update_sender
+                                .send(Update::RemoveTx {
+                                    txid: *spending_txid,
+                                })
+                                .unwrap();
                         } else {
-                            update_sender.send(Update::LoadOrSelectTx { txid: *spending_txid, pos: Some(rect.right_center() + initial_dist) }).unwrap();
+                            update_sender
+                                .send(Update::LoadOrSelectTx {
+                                    txid: *spending_txid,
+                                    pos: Some(rect.right_center() + initial_dist),
+                                })
+                                .unwrap();
                         }
                     }
                 }
@@ -662,14 +698,18 @@ impl Graph {
                             .coin_color(coin)
                             .unwrap_or(style.io_bg)
                             .gamma_multiply(0.4),
-                        OutputType::Fees => style.fees_fill()
+                        OutputType::Fees => style.fees_fill(),
                     },
-                    Stroke::NONE
+                    Stroke::NONE,
                 );
 
                 if let OutputType::Spent { spending_txid, .. } = output.output_type {
                     if loading_txids.contains(&spending_txid) {
-                        rect_striped(ui, screen_rect, style.black_text_color().gamma_multiply(0.1));
+                        rect_striped(
+                            ui,
+                            screen_rect,
+                            style.black_text_color().gamma_multiply(0.1),
+                        );
                         ui.ctx().request_repaint();
                     }
                 }
@@ -701,8 +741,8 @@ impl Graph {
                 }
                 let diff = other_rect.center() - rect.center();
                 let spacing = clear_spacing(rect, other_rect);
-                let force =
-                    -scale2 / spacing.powf(layout.force_params.tx_repulsion_dropoff) * diff.normalized();
+                let force = -scale2 / spacing.powf(layout.force_params.tx_repulsion_dropoff)
+                    * diff.normalized();
 
                 // Repulsion does not apply across connected components if the nodes aren't close to each other.
                 if self.components.connected(*txid, *other_txid)
@@ -767,7 +807,13 @@ pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> T
     shape
 }
 
-fn tx_content(txid: &Txid, label: &Option<String>, timestamp: &str, sats: &Sats, style: &Style) -> LayoutJob {
+fn tx_content(
+    txid: &Txid,
+    label: &Option<String>,
+    timestamp: &str,
+    sats: &Sats,
+    style: &Style,
+) -> LayoutJob {
     let mut job = LayoutJob::default();
     let font_id = FontId::monospace(10.0);
     let format = TextFormat {
@@ -1001,7 +1047,8 @@ fn rect_striped(ui: &egui::Ui, rect: Rect, color: Color32) {
     let time = ui.input(|i| i.time);
 
     let mut mesh = Mesh::default();
-    let mut start = rect.left_top() + Vec2::new(0., (time as f32 * speed % width * 2.) - 2. * width);
+    let mut start =
+        rect.left_top() + Vec2::new(0., (time as f32 * speed % width * 2.) - 2. * width);
     let mut i0 = 0;
 
     loop {

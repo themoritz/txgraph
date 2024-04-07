@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui::{Color32, Stroke, Response, FontId, Widget};
+use egui::{Color32, FontId, Response, Stroke, Widget};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 pub struct Style {
@@ -14,7 +14,7 @@ pub struct Style {
     pub utxo_bg: Color32,
     pub btc: Color32,
     pub tx_bg: Color32,
-    pub egui_style: Arc<egui::Style>
+    pub egui_style: Arc<egui::Style>,
 }
 
 impl Style {
@@ -30,7 +30,7 @@ impl Style {
             utxo_bg: Color32::from_gray(128),
             btc: Color32::from_rgb(255, 153, 0),
             tx_bg: Color32::from_rgb(0x1d, 0x9b, 0xf0),
-            egui_style
+            egui_style,
         }
     }
 
@@ -59,7 +59,10 @@ impl Style {
     }
 
     pub fn selected_tx_stroke(&self) -> Stroke {
-        Stroke::new(self.selected_stroke_width, self.io_highlight_color.gamma_multiply(0.3))
+        Stroke::new(
+            self.selected_stroke_width,
+            self.io_highlight_color.gamma_multiply(0.3),
+        )
     }
 
     pub fn utxo_fill(&self) -> Color32 {
@@ -99,7 +102,7 @@ pub enum Theme {
     Light,
     Dark,
     #[default]
-    System
+    System,
 }
 
 #[wasm_bindgen]
@@ -113,16 +116,16 @@ impl Theme {
         match self {
             Theme::Light => false,
             Theme::Dark => true,
-            Theme::System => is_dark_mode()
+            Theme::System => is_dark_mode(),
         }
     }
 }
 
-pub struct ThemeSwitch <'a> {
-    theme: &'a mut Theme
+pub struct ThemeSwitch<'a> {
+    theme: &'a mut Theme,
 }
 
-impl <'a> ThemeSwitch <'a> {
+impl<'a> ThemeSwitch<'a> {
     pub fn new(theme: &'a mut Theme) -> Self {
         Self { theme }
     }
@@ -130,29 +133,38 @@ impl <'a> ThemeSwitch <'a> {
 
 impl<'a> Widget for ThemeSwitch<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let response = ui.menu_button("◑ Theme", |ui| {
-            if ui.selectable_value(self.theme, Theme::System, "System").clicked() {
-                ui.close_menu();
-            }
-            if ui.selectable_value(self.theme, Theme::Light, "Light").clicked() {
-                ui.close_menu();
-            }
-            if ui.selectable_value(self.theme, Theme::Dark, "Dark").clicked() {
-                ui.close_menu();
-            }
-        }).response;
+        let response = ui
+            .menu_button("◑ Theme", |ui| {
+                if ui
+                    .selectable_value(self.theme, Theme::System, "System")
+                    .clicked()
+                {
+                    ui.close_menu();
+                }
+                if ui
+                    .selectable_value(self.theme, Theme::Light, "Light")
+                    .clicked()
+                {
+                    ui.close_menu();
+                }
+                if ui
+                    .selectable_value(self.theme, Theme::Dark, "Dark")
+                    .clicked()
+                {
+                    ui.close_menu();
+                }
+            })
+            .response;
 
         let old_dark_mode = ui.style().visuals.dark_mode;
         let dark_mode = self.theme.is_dark_mode();
 
         if old_dark_mode != dark_mode {
-            ui.ctx().set_visuals(
-                if dark_mode {
-                    egui::Visuals::dark()
-                } else {
-                    egui::Visuals::light()
-                }
-            );
+            ui.ctx().set_visuals(if dark_mode {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            });
         }
 
         response
