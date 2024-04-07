@@ -72,6 +72,8 @@ pub struct App {
     ui_size: Vec2,
     import_text: String,
     framerate: FrameRate,
+    controls_open: bool,
+    controls_rect: Option<egui::Rect>,
 }
 
 #[wasm_bindgen]
@@ -170,6 +172,8 @@ impl App {
             loading: 0,
             import_text: String::new(),
             framerate: FrameRate::default(),
+            controls_open: true,
+            controls_rect: None,
         }
     }
 
@@ -221,6 +225,13 @@ impl App {
             }
             Update::SelectTx { txid } => {
                 self.store.graph.select(txid);
+                if let Some(pos) = self.store.graph.get_tx_pos(txid) {
+                    if let Some(rect) = self.controls_rect {
+                        if rect.contains(self.store.transform.pos_to_screen(pos)) {
+                            self.controls_open = false;
+                        }
+                    }
+                }
             }
             Update::AddTx { txid, tx, pos } => {
                 self.store.graph.add_tx(txid, tx, pos);
@@ -255,9 +266,89 @@ impl eframe::App for App {
             sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
 
-        let frame = Frame::canvas(&ctx.style()).inner_margin(0.0);
+        let frame = Frame::canvas(&ctx.style()).inner_margin(0.0).stroke(egui::Stroke::NONE);
 
         let sender2 = sender.clone();
+
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if ui.selectable_label(self.controls_open, "Controls").clicked() {
+                    self.controls_open = !self.controls_open;
+                }
+
+                ui.separator();
+
+                ui.menu_button("File", |ui| {
+                    if ui.button("Export to Clipboard").clicked() {
+                        ui.output_mut(|o| o.copied_text = self.store.export());
+                        ui.close_menu();
+                    }
+                    ui.menu_button("Import", |ui| {
+                        ui.add(
+                            TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
+                        );
+                        if ui.button("Go").clicked() {
+                            match Project::import_(&self.import_text) {
+                                Ok((annotations, transactions)) => {
+                                    self.store.annotations = annotations;
+
+                                    self.store.graph = Graph::default();
+                                    for tx in &transactions {
+                                        load_tx(tx.txid, Some(tx.position.to_pos2()));
+                                    }
+
+                                    let num_txs = transactions.len() as f32;
+                                    let graph_center =
+                                        (transactions.iter().fold(Vec2::ZERO, |pos, tx| {
+                                            pos + tx.position.to_pos2().to_vec2()
+                                        }) / num_txs)
+                                            .to_pos2();
+                                    let screen_center = self
+                                        .store
+                                        .transform
+                                        .pos_from_screen((self.ui_size / 2.0).to_pos2());
+
+                                    self.store.transform.pan_to(graph_center, screen_center);
+
+                                    self.import_text = String::new();
+                                }
+                                Err(e) => sender
+                                    .send(Update::Error {
+                                        err: format!("Could not import Json because:\n{}", e),
+                                    })
+                                    .unwrap(),
+                            }
+                            ui.close_menu();
+                        }
+                    });
+                });
+
+                ui.menu_button("Reset", |ui| {
+                    if ui.button("Zoom").clicked() {
+                        self.store.transform.reset_zoom((self.ui_size / 2.0).to_pos2());
+                        ui.close_menu();
+                    }
+                    if ui.button("Graph").clicked() {
+                        self.store.graph = Graph::default();
+                        ui.close_menu();
+                    }
+                    if ui.button("Annotations").clicked() {
+                        self.store.annotations = Annotations::default();
+                        ui.close_menu();
+                    }
+                    if ui.button("All").clicked() {
+                        self.store = AppStore::default();
+                        ui.close_menu();
+                    }
+                });
+
+                ui.add(ThemeSwitch::new(&mut self.store.theme));
+
+                if self.loading > 0 {
+                    ui.spinner();
+                }
+            });
+        });
 
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             let mut response = ui.allocate_response(
@@ -333,80 +424,8 @@ impl eframe::App for App {
             }
         });
 
-        egui::Window::new("txgraph.info").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Export to Clipboard").clicked() {
-                        ui.output_mut(|o| o.copied_text = self.store.export());
-                        ui.close_menu();
-                    }
-                    ui.menu_button("Import", |ui| {
-                        ui.add(
-                            TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
-                        );
-                        if ui.button("Go").clicked() {
-                            match Project::import_(&self.import_text) {
-                                Ok((annotations, transactions)) => {
-                                    self.store.annotations = annotations;
-
-                                    self.store.graph = Graph::default();
-                                    for tx in &transactions {
-                                        load_tx(tx.txid, Some(tx.position.to_pos2()));
-                                    }
-
-                                    let num_txs = transactions.len() as f32;
-                                    let graph_center =
-                                        (transactions.iter().fold(Vec2::ZERO, |pos, tx| {
-                                            pos + tx.position.to_pos2().to_vec2()
-                                        }) / num_txs)
-                                            .to_pos2();
-                                    let screen_center = self
-                                        .store
-                                        .transform
-                                        .pos_from_screen((self.ui_size / 2.0).to_pos2());
-
-                                    self.store.transform.pan_to(graph_center, screen_center);
-
-                                    self.import_text = String::new();
-                                }
-                                Err(e) => sender
-                                    .send(Update::Error {
-                                        err: format!("Could not import Json because:\n{}", e),
-                                    })
-                                    .unwrap(),
-                            }
-                            ui.close_menu();
-                        }
-                    });
-                });
-
-                ui.menu_button("Reset", |ui| {
-                    if ui.button("Zoom").clicked() {
-                        self.store.transform.reset_zoom((self.ui_size / 2.0).to_pos2());
-                        ui.close_menu();
-                    }
-                    if ui.button("Graph").clicked() {
-                        self.store.graph = Graph::default();
-                        ui.close_menu();
-                    }
-                    if ui.button("Annotations").clicked() {
-                        self.store.annotations = Annotations::default();
-                        ui.close_menu();
-                    }
-                    if ui.button("All").clicked() {
-                        self.store = AppStore::default();
-                        ui.close_menu();
-                    }
-                });
-
-                ui.add(ThemeSwitch::new(&mut self.store.theme));
-
-                if self.loading > 0 {
-                    ui.spinner();
-                }
-            });
-
-            ui.allocate_space(Vec2::new(300.0, 3.0));
+        let response = egui::Window::new("txgraph.info").open(&mut self.controls_open).show(ctx, |ui| {
+            ui.allocate_space(Vec2::new(300.0, 0.0));
 
             ui.label("Visualizing Bitcoin's transaction graph.");
 
@@ -547,6 +566,8 @@ impl eframe::App for App {
                 ui.hyperlink_to("Contact", "mailto:hello@txgraph.info");
             });
         });
+
+        self.controls_rect = response.map(|r| r.response.rect);
 
         egui::Window::new("Error")
             .open(&mut self.err_open)
