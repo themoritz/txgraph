@@ -1,13 +1,12 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     f32::consts::PI,
     fmt::Write, sync::mpsc::Sender,
 };
 
 use eframe::epaint::TextShape;
 use egui::{
-    show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId, Pos2, Rect,
-    RichText, Rounding, Sense, TextFormat, Vec2,
+    ahash::HashSet, show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId, Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Vec2
 };
 use serde::{Deserialize, Serialize};
 
@@ -316,7 +315,8 @@ impl Graph {
         update_sender: Sender<Update>,
         layout: &Layout,
         annotations: &mut Annotations,
-    ) -> Response {
+        loading_txids: &HashSet<Txid>,
+    ) {
         let style = style::get(ui);
 
         for node in self.nodes.values_mut() {
@@ -544,6 +544,18 @@ impl Graph {
                         .coin_color(coin)
                         .unwrap_or(style.io_bg)
                         .gamma_multiply(0.4),
+                    Stroke::NONE,
+                );
+
+                if loading_txids.contains(&input.funding_txid) {
+                    rect_striped(ui, screen_rect, style.black_text_color().gamma_multiply(0.1));
+                    ui.ctx().request_repaint();
+                }
+
+                painter.rect(
+                    screen_rect,
+                    Rounding::ZERO,
+                    Color32::TRANSPARENT,
                     style.io_stroke(&response),
                 );
             }
@@ -652,6 +664,20 @@ impl Graph {
                             .gamma_multiply(0.4),
                         OutputType::Fees => style.fees_fill()
                     },
+                    Stroke::NONE
+                );
+
+                if let OutputType::Spent { spending_txid, .. } = output.output_type {
+                    if loading_txids.contains(&spending_txid) {
+                        rect_striped(ui, screen_rect, style.black_text_color().gamma_multiply(0.1));
+                        ui.ctx().request_repaint();
+                    }
+                }
+
+                painter.rect(
+                    screen_rect,
+                    Rounding::ZERO,
+                    Color32::TRANSPARENT,
                     match output.output_type {
                         OutputType::Spent {
                             spending_txid: _,
@@ -716,24 +742,16 @@ impl Graph {
 
         // UPDATE POSITIONS //
 
-        let mut layout_changed = false;
-
         for node in self.nodes.values_mut() {
             node.velocity *= layout.force_params.cooloff;
             if node.velocity.length() > 0.2 {
-                layout_changed = true;
+                ui.ctx().request_repaint();
             }
             if !node.dragged {
                 node.pos += node.velocity * layout.force_params.dt;
             }
         }
-
-        Response { layout_changed }
     }
-}
-
-pub struct Response {
-    pub layout_changed: bool,
 }
 
 fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
@@ -974,4 +992,38 @@ fn address_layout(job: &mut LayoutJob, address: &str, address_type: AddressType,
     };
 
     job.append(&format!(" ({})", type_), 0.0, type_format);
+}
+
+/// Fill the given rect with an animated striped pattern.
+fn rect_striped(ui: &egui::Ui, rect: Rect, color: Color32) {
+    let width: f32 = 6.;
+    let speed = 20.;
+    let time = ui.input(|i| i.time);
+
+    let mut mesh = Mesh::default();
+    let mut start = rect.left_top() + Vec2::new(0., (time as f32 * speed % width * 2.) - 2. * width);
+    let mut i0 = 0;
+
+    loop {
+        let nw = start;
+        let ne = nw + Vec2::new(rect.width(), -rect.width());
+        let se = ne + Vec2::new(0., width);
+        let sw = nw + Vec2::new(0., width);
+
+        mesh.colored_vertex(nw, color);
+        mesh.colored_vertex(ne, color);
+        mesh.colored_vertex(se, color);
+        mesh.colored_vertex(sw, color);
+        mesh.add_triangle(i0, i0 + 1, i0 + 2);
+        mesh.add_triangle(i0, i0 + 2, i0 + 3);
+
+        start += Vec2::new(0., width * 2.);
+        i0 += 4;
+
+        if start.y > rect.left_bottom().y + width {
+            break;
+        }
+    }
+
+    ui.painter().with_clip_rect(rect).add(mesh);
 }

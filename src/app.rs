@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Button, CursorIcon, Frame, Key, Pos2, Sense, TextEdit, TextStyle, Vec2};
+use egui::{ahash::HashSet, Button, CursorIcon, Frame, Key, Pos2, Sense, TextEdit, TextStyle, Vec2};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
@@ -54,8 +54,12 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
-    Loading,
-    LoadingDone,
+    Loading {
+        txid: Txid,
+    },
+    LoadingDone {
+        txid: Txid,
+    },
     Error {
         err: String,
     },
@@ -67,7 +71,7 @@ pub struct App {
     update_receiver: Receiver<Update>,
     err: String,
     err_open: bool,
-    loading: usize,
+    loading: HashSet<Txid>,
     flight: Flight,
     ui_size: Vec2,
     import_text: String,
@@ -169,7 +173,7 @@ impl App {
             err_open: false,
             flight: Flight::new(),
             ui_size: get_viewport_dimensions().unwrap_or_default(),
-            loading: 0,
+            loading: HashSet::default(),
             import_text: String::new(),
             framerate: FrameRate::default(),
             controls_open: true,
@@ -187,13 +191,13 @@ impl App {
                 }
 
                 let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
-                self.update_sender.send(Update::Loading).unwrap();
+                self.update_sender.send(Update::Loading { txid }).unwrap();
 
                 let sender = self.update_sender.clone();
                 let center = self.store.transform.pos_from_screen((self.ui_size / 2.0 + get_random_vec2(50.0)).to_pos2());
 
                 ehttp::fetch(request, move |response| {
-                    sender.send(Update::LoadingDone).unwrap();
+                    sender.send(Update::LoadingDone { txid }).unwrap();
                     let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
                     match response {
                         Ok(response) => {
@@ -239,8 +243,8 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
             }
-            Update::Loading => self.loading += 1,
-            Update::LoadingDone => self.loading -= 1,
+            Update::Loading { txid } =>  { self.loading.insert(txid); },
+            Update::LoadingDone {txid } => { self.loading.remove(&txid); },
             Update::Error { err } => {
                 self.err = err;
                 self.err_open = true
@@ -344,7 +348,7 @@ impl eframe::App for App {
 
                 ui.add(ThemeSwitch::new(&mut self.store.theme));
 
-                if self.loading > 0 {
+                if !self.loading.is_empty() {
                     ui.spinner();
                 }
             });
@@ -411,17 +415,14 @@ impl eframe::App for App {
                 }
             }
 
-            let response = self.store.graph.draw(
+            self.store.graph.draw(
                 ui,
                 &self.store.transform,
                 sender2,
                 &self.store.layout,
                 &mut self.store.annotations,
+                &self.loading
             );
-
-            if response.layout_changed {
-                ctx.request_repaint();
-            }
         });
 
         let response = egui::Window::new("txgraph.info").open(&mut self.controls_open).show(ctx, |ui| {
