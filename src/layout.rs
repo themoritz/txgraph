@@ -101,7 +101,8 @@ impl Scale {
         ui.label("Display size of transactions:");
 
         Grid::new("Scale").num_columns(2).show(ui, |ui| {
-            ui.label("From:");
+            ui.label("From:")
+                .on_hover_text("The size of the smallest transaction you want to investigate.");
             ui.add(
                 egui::Slider::new(&mut self.x1, 10_000..=100_000_00_000_000)
                     .custom_formatter(|x, _| format!("{}", Sats(x as u64)))
@@ -110,11 +111,13 @@ impl Scale {
             );
             ui.end_row();
 
-            ui.label("Size:");
+            ui.label("Size:")
+                .on_hover_text("What size should the smallest transaction be?");
             ui.add(egui::Slider::new(&mut self.y1, 30.0..=500.0).text("points"));
             ui.end_row();
 
-            ui.label("To:");
+            ui.label("To:")
+                .on_hover_text("The size of the largest transaction you want to investigate.");
             ui.add(
                 egui::Slider::new(&mut self.x2, 10_000..=100_000_00_000_000)
                     .custom_formatter(|x, _| format!("{}", Sats(x as u64)))
@@ -123,7 +126,8 @@ impl Scale {
             );
             ui.end_row();
 
-            ui.label("Size:");
+            ui.label("Size:")
+                .on_hover_text("What size should the largest transaction be?");
             ui.add(egui::Slider::new(&mut self.y2, 30.0..=500.0).text("points"));
             ui.end_row();
         });
