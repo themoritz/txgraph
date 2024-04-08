@@ -404,6 +404,8 @@ impl eframe::App for App {
                 Sense::click_and_drag().union(Sense::hover()),
             );
 
+            ui.set_clip_rect(response.rect);
+
             if self.flight.is_active() {
                 let delta = self.flight.update();
                 self.store.transform.translate(-delta);
