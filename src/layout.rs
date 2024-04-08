@@ -23,17 +23,17 @@ pub struct ForceParams {
     pub scale: f32,
     pub dt: f32,
     pub cooloff: f32,
-    pub y_compress: f32,
+    pub spread: f32,
     pub tx_repulsion_dropoff: f32,
 }
 
 impl Default for ForceParams {
     fn default() -> Self {
         Self {
-            scale: 80.0,
+            scale: 50.0,
             dt: 0.08,
             cooloff: 0.85,
-            y_compress: 2.0,
+            spread: 0.75,
             tx_repulsion_dropoff: 1.2,
         }
     }
@@ -48,8 +48,8 @@ impl ForceParams {
             ui.add(egui::Slider::new(&mut self.scale, 5.0..=200.0));
             ui.end_row();
 
-            ui.label("Y Compress:");
-            ui.add(egui::Slider::new(&mut self.y_compress, 1.0..=5.0));
+            ui.label("Spread:");
+            ui.add(egui::Slider::new(&mut self.spread, 0.2..=5.0));
             ui.end_row();
 
             ui.label("Tx repulsion factor:");

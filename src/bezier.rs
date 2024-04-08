@@ -11,7 +11,7 @@ pub struct Cubic {
 
 impl Cubic {
     pub fn sankey(from: Pos2, to: Pos2) -> Self {
-        let mid = Vec2::new((to - from).x / 2.0, 0.0);
+        let mid = Vec2::new(0.0, (to - from).y / 2.0);
         Cubic {
             p0: from,
             p1: from + mid,
@@ -48,28 +48,28 @@ impl Cubic {
 }
 pub struct Edge {
     pub from: Pos2,
-    pub from_height: f32,
+    pub from_width: f32,
     pub to: Pos2,
-    pub to_height: f32,
+    pub to_width: f32,
 }
 
 impl Edge {
     pub fn draw(&self, ui: &egui::Ui, color: Color32, transform: &Transform) -> EdgeResponse {
-        let top = Cubic::sankey(self.from, self.to);
-        let bot = Cubic::sankey(
-            self.from + Vec2::new(0.0, self.from_height),
-            self.to + Vec2::new(0.0, self.to_height),
+        let left = Cubic::sankey(self.from, self.to);
+        let right = Cubic::sankey(
+            self.from + Vec2::new(self.from_width, 0.0),
+            self.to + Vec2::new(self.to_width, 0.0),
         );
 
         let steps = 15;
 
-        let mut tops = Vec::with_capacity(steps + 1);
-        let mut bots = Vec::with_capacity(steps + 1);
+        let mut lefts = Vec::with_capacity(steps + 1);
+        let mut rights = Vec::with_capacity(steps + 1);
 
         for n in 0..=steps {
             let t = n as f32 / steps as f32;
-            tops.push(transform.pos_to_screen(top.eval(t)));
-            bots.push(transform.pos_to_screen(bot.eval(t)));
+            lefts.push(transform.pos_to_screen(left.eval(t)));
+            rights.push(transform.pos_to_screen(right.eval(t)));
         }
 
         let pointer = ui.ctx().pointer_latest_pos();
@@ -78,15 +78,12 @@ impl Edge {
         if let Some(p) = pointer {
             for n in 1..=steps {
                 // Assuming that top and bot have the same x coords.
-                let tl = tops[n - 1];
-                let tr = tops[n];
-                if p.x >= tl.x && p.x <= tr.x {
-                    let bl = bots[n - 1];
-                    let br = bots[n];
-                    // Equivalent to rotate(tr - tl).dot(p - tr)
-                    if (tr.y - tl.y) * (p.x - tl.x) - (tr.x - tl.x) * (p.y - tl.y) <= 0.0
-                        && (br.y - bl.y) * (p.x - bl.x) - (br.x - bl.x) * (p.y - bl.y) >= 0.0
-                    {
+                let lt = lefts[n - 1];
+                let lb = lefts[n];
+                if p.y >= lt.y && p.y <= lb.y {
+                    let rt = rights[n - 1];
+                    let rb = rights[n];
+                    if (lb - lt).rot90().dot(p - lt) >= 0. && (rb - rt).rot90().dot(p - rt) <= 0. {
                         hovering = true;
                         clicked = ui.input(|i| i.pointer.primary_clicked());
                         break;
@@ -104,22 +101,22 @@ impl Edge {
         };
 
         let start = 0.3;
-        let arrow_width = 1;
+        let arrow_width = 2;
         let arrow_length = 4;
         let start_i = (start * steps as f32) as usize;
         let end_i = start_i + arrow_width;
         let m_start_i = start_i + arrow_length;
         let m_end_i = m_start_i + arrow_width;
-        let m_start = tops[m_start_i] + (bots[m_start_i] - tops[m_start_i]) / 2.;
-        let m_end = tops[m_end_i] + (bots[m_end_i] - tops[m_end_i]) / 2.;
+        let m_start = lefts[m_start_i] + (rights[m_start_i] - lefts[m_start_i]) / 2.;
+        let m_end = lefts[m_end_i] + (rights[m_end_i] - lefts[m_end_i]) / 2.;
 
         let mut mesh = Mesh::default();
-        mesh.colored_vertex(tops[0], color);
-        mesh.colored_vertex(bots[0], color);
+        mesh.colored_vertex(lefts[0], color);
+        mesh.colored_vertex(rights[0], color);
         for n in 1..=start_i {
             let i0 = (n as u32 - 1) * 2;
-            mesh.colored_vertex(tops[n], color);
-            mesh.colored_vertex(bots[n], color);
+            mesh.colored_vertex(lefts[n], color);
+            mesh.colored_vertex(rights[n], color);
             mesh.add_triangle(i0, i0 + 1, i0 + 2);
             mesh.add_triangle(i0 + 1, i0 + 2, i0 + 3);
         }
@@ -132,12 +129,12 @@ impl Edge {
         mesh.colored_vertex(m_end, color);
         let tip_i = mesh.vertices.len() as u32 - 1;
 
-        mesh.colored_vertex(tops[end_i], color);
-        mesh.colored_vertex(bots[end_i], color);
+        mesh.colored_vertex(lefts[end_i], color);
+        mesh.colored_vertex(rights[end_i], color);
         for n in end_i + 1..=m_end_i + 1 {
             let i0 = tip_i + (n - end_i) as u32 * 2;
-            mesh.colored_vertex(tops[n], color);
-            mesh.colored_vertex(bots[n], color);
+            mesh.colored_vertex(lefts[n], color);
+            mesh.colored_vertex(rights[n], color);
             mesh.add_triangle(i0, tip_i, i0 + 2);
             mesh.add_triangle(i0 - 1, tip_i, i0 + 1);
         }
@@ -147,8 +144,8 @@ impl Edge {
 
         for n in m_end_i + 2..=steps {
             let i0 = last + (n - m_end_i - 2) as u32 * 2;
-            mesh.colored_vertex(tops[n], color);
-            mesh.colored_vertex(bots[n], color);
+            mesh.colored_vertex(lefts[n], color);
+            mesh.colored_vertex(rights[n], color);
             mesh.add_triangle(i0, i0 + 1, i0 + 2);
             mesh.add_triangle(i0 - 1, i0, i0 + 1);
         }
@@ -157,12 +154,12 @@ impl Edge {
 
         // Arrow
         let mut mesh = Mesh::default();
-        mesh.colored_vertex(tops[start_i], arrow_color);
-        mesh.colored_vertex(tops[end_i], arrow_color);
+        mesh.colored_vertex(lefts[start_i], arrow_color);
+        mesh.colored_vertex(lefts[end_i], arrow_color);
         mesh.colored_vertex(m_start, arrow_color);
         mesh.colored_vertex(m_end, arrow_color);
-        mesh.colored_vertex(bots[start_i], arrow_color);
-        mesh.colored_vertex(bots[end_i], arrow_color);
+        mesh.colored_vertex(rights[start_i], arrow_color);
+        mesh.colored_vertex(rights[end_i], arrow_color);
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(1, 2, 3);
         mesh.add_triangle(2, 3, 4);

@@ -1,6 +1,5 @@
-use std::{collections::HashMap, f32::consts::PI, fmt::Write, sync::mpsc::Sender};
+use std::{collections::HashMap, fmt::Write, sync::mpsc::Sender};
 
-use eframe::epaint::TextShape;
 use egui::{
     ahash::HashSet, show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId,
     Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
@@ -33,7 +32,7 @@ pub struct DrawableNode {
     pos: Pos2,
     velocity: Vec2,
     dragged: bool,
-    height: f32,
+    size: f32,
     tx_value: u64,
     tx_timestamp: String,
     block_height: u32,
@@ -43,36 +42,36 @@ pub struct DrawableNode {
 
 impl DrawableNode {
     fn scale(&mut self, scale: &Scale) {
-        self.height = scale.apply(self.tx_value) as f32;
+        self.size = scale.apply(self.tx_value) as f32;
 
-        let input_height: f32 = self
+        let input_size: f32 = self
             .inputs
             .iter()
             .map(|input| scale.apply(input.value) as f32)
             .sum();
 
-        let output_height: f32 = self
+        let output_size: f32 = self
             .outputs
             .iter()
             .map(|output| scale.apply(output.value) as f32)
             .sum();
 
-        let mut bot = 0.0;
+        let mut end = 0.0;
 
         for i in &mut self.inputs {
-            let h = scale.apply(i.value) as f32 * self.height / input_height;
-            i.top = bot;
-            bot += h;
-            i.bot = bot;
+            let h = scale.apply(i.value) as f32 * self.size / input_size;
+            i.start = end;
+            end += h;
+            i.end = end;
         }
 
-        bot = 0.0;
+        end = 0.0;
 
         for o in &mut self.outputs {
-            let h = scale.apply(o.value) as f32 * self.height / output_height;
-            o.top = bot;
-            bot += h;
-            o.bot = bot;
+            let h = scale.apply(o.value) as f32 * self.size / output_size;
+            o.start = end;
+            end += h;
+            o.end = end;
         }
     }
 
@@ -132,8 +131,8 @@ pub struct DrawableEdge {
 
 #[derive(Serialize, Deserialize)]
 pub struct DrawableInput {
-    top: f32,
-    bot: f32,
+    start: f32,
+    end: f32,
     value: u64,
     address: String,
     address_type: AddressType,
@@ -143,8 +142,8 @@ pub struct DrawableInput {
 
 #[derive(Serialize, Deserialize)]
 pub struct DrawableOutput {
-    top: f32,
-    bot: f32,
+    start: f32,
+    end: f32,
     value: u64,
     output_type: OutputType,
 }
@@ -217,8 +216,8 @@ impl Graph {
             .inputs
             .iter()
             .map(|i| DrawableInput {
-                top: 0.0,
-                bot: 0.0,
+                start: 0.0,
+                end: 0.0,
                 value: i.value,
                 address: i.address.clone(),
                 address_type: i.address_type,
@@ -231,8 +230,8 @@ impl Graph {
             .outputs
             .iter()
             .map(|o| DrawableOutput {
-                top: 0.0,
-                bot: 0.0,
+                start: 0.0,
+                end: 0.0,
                 value: o.value,
                 output_type: match o.spending_txid {
                     None => OutputType::Utxo {
@@ -251,8 +250,8 @@ impl Graph {
         // Coinbase txs don't have fees
         if !tx.is_coinbase() {
             outputs.push(DrawableOutput {
-                top: 0.0,
-                bot: 0.0,
+                start: 0.0,
+                end: 0.0,
                 value: tx.fees(),
                 output_type: OutputType::Fees,
             });
@@ -264,7 +263,7 @@ impl Graph {
                 pos,
                 velocity: Vec2::new(0.0, 0.0),
                 dragged: false,
-                height: 0.0,
+                size: 0.0,
                 tx_value: tx.amount(),
                 tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
                     .unwrap()
@@ -334,10 +333,9 @@ impl Graph {
         for (txid, node) in &self.nodes {
             let outer_rect = Rect::from_center_size(
                 node.pos,
-                Vec2::new(style.tx_width + 2.0 * style.io_width, node.height),
+                Vec2::new(node.size, style.tx_width + 2.0 * style.io_width),
             );
-            let inner_rect =
-                Rect::from_center_size(node.pos, Vec2::new(style.tx_width, node.height));
+            let inner_rect = Rect::from_center_size(node.pos, Vec2::new(node.size, style.tx_width));
 
             outer_rects.insert(*txid, outer_rect);
             inner_rects.insert(*txid, inner_rect);
@@ -345,17 +343,17 @@ impl Graph {
             let left_top = outer_rect.left_top();
             for (i, input) in node.inputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(left_top.x, left_top.y + input.top),
-                    Pos2::new(left_top.x + style.io_width, left_top.y + input.bot),
+                    Pos2::new(left_top.x + input.start, left_top.y),
+                    Pos2::new(left_top.x + input.end, left_top.y + style.io_width),
                 );
                 input_rects.insert((*txid, i), rect);
             }
 
-            let right_top = outer_rect.right_top();
+            let left_bot = outer_rect.left_bottom();
             for (o, output) in node.outputs.iter().enumerate() {
                 let rect = Rect::from_min_max(
-                    Pos2::new(right_top.x - style.io_width, right_top.y + output.top),
-                    Pos2::new(right_top.x, right_top.y + output.bot),
+                    Pos2::new(left_bot.x + output.start, left_bot.y - style.io_width),
+                    Pos2::new(left_bot.x + output.end, left_bot.y),
                 );
                 output_rects.insert((*txid, o), rect);
             }
@@ -371,10 +369,10 @@ impl Graph {
             let color = annotations.coin_color(coin).unwrap_or(Color32::GOLD);
 
             let flow = Edge {
-                from: from_rect.right_top(),
-                from_height: from_rect.height(),
+                from: from_rect.left_bottom(),
+                from_width: from_rect.width(),
                 to: to_rect.left_top(),
-                to_height: to_rect.height(),
+                to_width: to_rect.width(),
             };
             let response = flow.draw(ui, color, transform);
 
@@ -405,7 +403,7 @@ impl Graph {
 
         // DRAW NODES //
 
-        let initial_dist = Vec2::new(style.io_width + style.tx_width / 2.0 + 5.0, 0.0);
+        let initial_dist = Vec2::new(0.0, style.io_width + style.tx_width / 2.0 + 5.0);
         let painter = ui.painter();
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
@@ -501,18 +499,17 @@ impl Graph {
             );
 
             let tx_painter = painter.with_clip_rect(rect);
-            tx_painter.add(rotated_layout(
-                ui,
-                tx_content(
+            tx_painter.galley(
+                rect.left_top() + Vec2::new(2.0, 2.0),
+                tx_painter.layout_job(tx_content(
                     txid,
                     &label,
                     &node.tx_timestamp,
                     &Sats(node.tx_value),
                     &style,
-                ),
-                rect.right_top() + Vec2::new(-1.0, 2.0),
-                PI / 2.0,
-            ));
+                )),
+                Color32::TRANSPARENT,
+            );
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
@@ -554,7 +551,7 @@ impl Graph {
                         update_sender
                             .send(Update::LoadOrSelectTx {
                                 txid: input.funding_txid,
-                                pos: Some(rect.left_center() - initial_dist),
+                                pos: Some(rect.center_top() - initial_dist),
                             })
                             .unwrap();
                     }
@@ -672,7 +669,7 @@ impl Graph {
                             update_sender
                                 .send(Update::LoadOrSelectTx {
                                     txid: *spending_txid,
-                                    pos: Some(rect.right_center() + initial_dist),
+                                    pos: Some(rect.center_bottom() + initial_dist),
                                 })
                                 .unwrap();
                         }
@@ -766,12 +763,12 @@ impl Graph {
             let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
 
             // Attraction force between nodes
-            let diff = to_rect.left_center() - from_rect.right_center();
+            let diff = to_rect.center_top() - from_rect.center_bottom();
             let mut force = diff.length_sq() / layout.force_params.scale * diff.normalized();
-            force.y *= layout.force_params.y_compress;
+            force.x /= layout.force_params.spread;
 
             // Repulsion force between layers
-            force -= Vec2::new(scale2 / diff.x.max(2.0), 0.0);
+            force -= Vec2::new(0.0, scale2 / diff.y.max(2.0));
 
             // Take edge multiplicity into account
             force /= edge_multiplicities[&(edge.source, edge.target)] as f32;
@@ -798,13 +795,6 @@ fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
     let x = (a.center().x - b.center().x).abs() - (b.width() + a.width()) / 2.0;
     let y = (a.center().y - b.center().y).abs() - (b.height() + a.height()) / 2.0;
     x.max(y).max(2.0)
-}
-
-pub fn rotated_layout(ui: &egui::Ui, job: LayoutJob, pos: Pos2, angle: f32) -> TextShape {
-    let galley = ui.fonts(|f| f.layout_job(job));
-    let mut shape = TextShape::new(pos, galley, Color32::TRANSPARENT);
-    shape.angle = angle;
-    shape
 }
 
 fn tx_content(
@@ -1047,15 +1037,14 @@ fn rect_striped(ui: &egui::Ui, rect: Rect, color: Color32) {
     let time = ui.input(|i| i.time);
 
     let mut mesh = Mesh::default();
-    let mut start =
-        rect.left_top() + Vec2::new(0., (time as f32 * speed % width * 2.) - 2. * width);
+    let mut start = rect.left_top() + Vec2::new((time as f32 * speed % width * 2.) - width, 0.);
     let mut i0 = 0;
 
     loop {
         let nw = start;
-        let ne = nw + Vec2::new(rect.width(), -rect.width());
-        let se = ne + Vec2::new(0., width);
-        let sw = nw + Vec2::new(0., width);
+        let sw = nw + Vec2::new(-rect.height(), rect.height());
+        let ne = nw + Vec2::new(width, 0.);
+        let se = sw + Vec2::new(width, 0.);
 
         mesh.colored_vertex(nw, color);
         mesh.colored_vertex(ne, color);
@@ -1064,10 +1053,10 @@ fn rect_striped(ui: &egui::Ui, rect: Rect, color: Color32) {
         mesh.add_triangle(i0, i0 + 1, i0 + 2);
         mesh.add_triangle(i0, i0 + 2, i0 + 3);
 
-        start += Vec2::new(0., width * 2.);
+        start += Vec2::new(width * 2.0, 0.);
         i0 += 4;
 
-        if start.y > rect.left_bottom().y + width {
+        if start.x > rect.right_top().x + width {
             break;
         }
     }
