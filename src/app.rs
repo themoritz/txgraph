@@ -1,7 +1,7 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
 use egui::{
-    ahash::HashSet, Button, CursorIcon, Frame, Key, Pos2, Sense, TextEdit, TextStyle, Vec2,
+    ahash::HashSet, Button, CursorIcon, Frame, Key, Pos2, Rect, Sense, TextEdit, TextStyle, Vec2,
 };
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
@@ -390,6 +390,10 @@ impl eframe::App for App {
                     }
                 });
 
+                ui.menu_button("Layout", |ui| {
+                    self.store.layout.ui(ui);
+                });
+
                 ui.add(ThemeSwitch::new(&mut self.store.theme));
 
                 if !self.loading.is_empty() {
@@ -403,6 +407,14 @@ impl eframe::App for App {
                 ui.available_size_before_wrap(),
                 Sense::click_and_drag().union(Sense::hover()),
             );
+
+            self.framerate.ui(&mut ui.child_ui(
+                Rect::from_min_max(
+                    response.rect.right_top() - Vec2::new(-10., -5.),
+                    response.rect.right_top() + Vec2::new(-5., 10.),
+                ),
+                egui::Layout::right_to_left(egui::Align::Min),
+            ));
 
             ui.set_clip_rect(response.rect);
 
@@ -602,11 +614,6 @@ impl eframe::App for App {
                             }
                         }
                     });
-
-                ui.collapsing("Layout", |ui| {
-                    self.store.layout.ui(ui);
-                    self.framerate.ui(ui);
-                });
 
                 ui.add_space(3.0);
 

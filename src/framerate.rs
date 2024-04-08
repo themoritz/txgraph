@@ -1,4 +1,4 @@
-use egui::util::History;
+use egui::{util::History, RichText};
 
 pub struct FrameRate {
     frame_times: History<f32>,
@@ -33,10 +33,14 @@ impl FrameRate {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.label(format!(
-            "{:.0} fps ({:.2} ms / frame)",
-            self.fps(),
-            1e3 * self.mean_frame_time()
-        ));
+        ui.label(
+            RichText::new(format!(
+                "{:.0} fps ({:.2} ms / frame)",
+                self.fps(),
+                1e3 * self.mean_frame_time()
+            ))
+            .weak()
+            .small(),
+        );
     }
 }

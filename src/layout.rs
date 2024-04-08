@@ -1,4 +1,4 @@
-use egui::Grid;
+use egui::{Grid, RichText};
 use serde::{Deserialize, Serialize};
 
 use crate::bitcoin::Sats;
@@ -13,6 +13,7 @@ pub struct Layout {
 impl Layout {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         self.force_params.ui(ui);
+        ui.separator();
         self.scale.ui(ui);
     }
 }
@@ -41,7 +42,7 @@ impl Default for ForceParams {
 
 impl ForceParams {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.label("Graph layout parameters:");
+        ui.label(RichText::new("Graph layout params:").strong());
 
         Grid::new("Layout").num_columns(2).show(ui, |ui| {
             ui.label("Scale:");
@@ -98,7 +99,7 @@ impl Scale {
 
     #[allow(clippy::inconsistent_digit_grouping)]
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.label("Display size of transactions:");
+        ui.label(RichText::new("Display size of transactions:").strong());
 
         Grid::new("Scale").num_columns(2).show(ui, |ui| {
             ui.label("From:")
