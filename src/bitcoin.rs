@@ -3,8 +3,11 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use egui::{text::LayoutJob, Widget};
 use hex::{FromHex, ToHex};
 use serde::{Deserialize, Serialize};
+
+use crate::{graph::sats_layout, style::Style};
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
 pub struct Txid([u8; 32]);
@@ -153,6 +156,25 @@ impl Sats {
             msats,
             btc: vec,
         }
+    }
+}
+
+pub struct SatsDisplay<'a> {
+    sats: Sats,
+    style: &'a Style,
+}
+
+impl<'a> SatsDisplay<'a> {
+    pub fn new(sats: Sats, style: &'a Style) -> Self {
+        Self { sats, style }
+    }
+}
+
+impl Widget for SatsDisplay<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let mut job = LayoutJob::default();
+        sats_layout(&mut job, &self.sats, self.style);
+        ui.label(job)
     }
 }
 

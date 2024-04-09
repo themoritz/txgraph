@@ -10,7 +10,7 @@ use crate::{
     annotations::Annotations,
     app::{push_history_state, Update},
     bezier::Edge,
-    bitcoin::{AddressType, AmountComponents, Sats, Transaction, Txid},
+    bitcoin::{AddressType, AmountComponents, Sats, SatsDisplay, Transaction, Txid},
     components::Components,
     export,
     layout::{Layout, Scale},
@@ -639,9 +639,7 @@ impl Graph {
                         }
                         OutputType::Fees => {
                             ui.label(RichText::new("Fees").heading().monospace());
-                            let mut job = LayoutJob::default();
-                            sats_layout(&mut job, &Sats(output.value), &style);
-                            ui.label(job);
+                            ui.add(SatsDisplay::new(Sats(output.value), &style));
                         }
                     });
 
@@ -867,7 +865,7 @@ fn txid_layout(job: &mut LayoutJob, txid: &Txid, style: &Style) {
     }
 }
 
-fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
+pub fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
     let font_id = style.font_id();
     let btc_font = FontId::new(font_id.size, egui::FontFamily::Name("btc".into()));
     let btc_format = TextFormat {
@@ -876,6 +874,8 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
         ..Default::default()
     };
     job.append("\u{E9A8}", 0.0, btc_format);
+
+    let amount = sats.0;
 
     let black_format = TextFormat {
         font_id: font_id.clone(),
@@ -905,16 +905,33 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
             job.append(&format!("{:03}", amount), SPACING, black_format.clone());
         }
     } else {
-        job.append("0", SPACING, white_format.clone());
+        job.append(
+            "0",
+            SPACING,
+            if amount % 1_000_000 == 0 && amount > 100_000 {
+                black_format.clone()
+            } else {
+                white_format.clone()
+            },
+        );
     }
 
+    #[allow(clippy::collapsible_else_if)]
     job.append(
         ".",
         0.0,
         if started {
-            black_format.clone()
+            if amount % 100_000_000 == 0 {
+                white_format.clone()
+            } else {
+                black_format.clone()
+            }
         } else {
-            white_format.clone()
+            if amount % 1_000_000 == 0 && amount > 100_000 {
+                black_format.clone()
+            } else {
+                white_format.clone()
+            }
         },
     );
 
@@ -922,11 +939,23 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
         job.append(
             &format!("{:02}", msats.unwrap_or(0)),
             0.0,
-            black_format.clone(),
+            if amount % 100_000_000 == 0 {
+                white_format.clone()
+            } else {
+                black_format.clone()
+            },
         );
     } else if let Some(m) = msats {
         if m < 10 {
-            job.append("0", 0.0, white_format.clone());
+            job.append(
+                "0",
+                0.0,
+                if amount % 1_000_000 == 0 {
+                    black_format.clone()
+                } else {
+                    white_format.clone()
+                },
+            );
         }
         job.append(&format!("{}", m), 0.0, black_format.clone());
         started = true;
@@ -939,7 +968,11 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
         job.append(
             &format!("{:03}", ksats.unwrap_or(0)),
             0.0,
-            black_format.clone(),
+            if amount % 1_000_000 == 0 {
+                white_format.clone()
+            } else {
+                black_format.clone()
+            },
         );
     } else if let Some(k) = ksats {
         if k < 10 {
@@ -955,7 +988,15 @@ fn sats_layout(job: &mut LayoutJob, sats: &Sats, style: &Style) {
 
     job.append("", SPACING, white_format.clone());
     if started {
-        job.append(&format!("{:03}", sats), 0.0, black_format.clone());
+        job.append(
+            &format!("{:03}", sats),
+            0.0,
+            if amount % 1_000_000 == 0 {
+                white_format.clone()
+            } else {
+                black_format.clone()
+            },
+        );
     } else {
         if sats < 10 {
             job.append("00", 0.0, white_format);
