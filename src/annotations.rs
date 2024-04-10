@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{bitcoin::Txid, export};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Annotations {
     tx_color: HashMap<Txid, [u8; 3]>,
     tx_label: HashMap<Txid, String>,
@@ -24,7 +24,7 @@ impl Annotations {
         Color32::from_rgb(255, 128, 0),
     ];
 
-    pub fn import_(annotations: &export::Annotations) -> Result<Self, String> {
+    pub fn import(annotations: &export::Annotations0) -> Result<Self, String> {
         fn txids_from_strings<T: Clone>(
             map: &HashMap<String, T>,
         ) -> Result<HashMap<Txid, T>, String> {
@@ -62,7 +62,7 @@ impl Annotations {
         Ok(result)
     }
 
-    pub fn export(&self) -> export::Annotations {
+    pub fn export(&self) -> export::Annotations0 {
         fn txids_to_strings<T: Clone>(map: &HashMap<Txid, T>) -> HashMap<String, T> {
             map.iter()
                 .map(|(k, v)| (k.to_string(), v.clone()))
@@ -75,7 +75,7 @@ impl Annotations {
                 .collect()
         }
 
-        export::Annotations {
+        export::Annotations0 {
             tx_color: txids_to_strings(&self.tx_color),
             tx_label: txids_to_strings(&self.tx_label),
             coin_color: txos_to_strings(&self.coin_color),
@@ -103,6 +103,16 @@ impl Annotations {
         self.coin_color
             .get(&coin)
             .map(|c| Color32::from_rgb(c[0], c[1], c[2]))
+    }
+
+    #[allow(dead_code)]
+    pub fn set_tx_label(&mut self, txid: Txid, label: String) {
+        self.tx_label.insert(txid, label);
+    }
+
+    #[allow(dead_code)]
+    pub fn set_coin_label(&mut self, coin: (Txid, usize), label: String) {
+        self.coin_label.insert(coin, label);
     }
 
     pub fn tx_label(&self, txid: Txid) -> Option<String> {

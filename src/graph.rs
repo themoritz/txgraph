@@ -177,10 +177,7 @@ impl Graph {
     pub fn export(&self) -> Vec<export::Transaction> {
         self.nodes
             .iter()
-            .map(|(txid, node)| export::Transaction {
-                txid: *txid,
-                position: export::Position::from_pos2(node.pos),
-            })
+            .map(|(txid, node)| export::Transaction::new(*txid, node.pos))
             .collect()
     }
 

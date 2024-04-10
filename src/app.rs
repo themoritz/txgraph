@@ -334,19 +334,19 @@ impl eframe::App for App {
                             TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
                         );
                         if ui.button("Go").clicked() {
-                            match Project::import_(&self.import_text) {
-                                Ok((annotations, transactions)) => {
-                                    self.store.annotations = annotations;
+                            match Project::import(&self.import_text) {
+                                Ok(project) => {
+                                    self.store.annotations = project.annotations;
 
                                     self.store.graph = Graph::default();
-                                    for tx in &transactions {
-                                        load_tx(tx.txid, Some(tx.position.to_pos2()));
+                                    for tx in &project.transactions {
+                                        load_tx(tx.txid, Some(tx.position));
                                     }
 
-                                    let num_txs = transactions.len() as f32;
+                                    let num_txs = project.transactions.len() as f32;
                                     let graph_center =
-                                        (transactions.iter().fold(Vec2::ZERO, |pos, tx| {
-                                            pos + tx.position.to_pos2().to_vec2()
+                                        (project.transactions.iter().fold(Vec2::ZERO, |pos, tx| {
+                                            pos + tx.position.to_vec2()
                                         }) / num_txs)
                                             .to_pos2();
                                     let screen_center = self
