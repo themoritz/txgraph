@@ -8,7 +8,7 @@ fn main() -> eframe::Result<()> {
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
-        "Coin Explorer",
+        "txgraph.info",
         native_options,
         Box::new(|cc| Box::new(txgraph::App::new(cc))),
     )

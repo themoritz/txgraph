@@ -8,12 +8,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     annotations::Annotations,
-    app::{push_history_state, Update},
+    app::Update,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, SatsDisplay, Transaction, Txid},
     components::Components,
     export,
     layout::{Layout, Scale},
+    platform::inner::push_history_state,
     style::{self, Style},
     transform::Transform,
 };

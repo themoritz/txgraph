@@ -18,15 +18,21 @@ impl Project {
         Project0 {
             version: 0,
             annotations: self.annotations.export(),
-            transactions: self.transactions.iter().map(Transaction::to_transaction0).collect(),
-        }.export()
+            transactions: self
+                .transactions
+                .iter()
+                .map(Transaction::to_transaction0)
+                .collect(),
+        }
+        .export()
     }
 
     pub fn import(string: &str) -> Result<Self, String> {
         let project0 = Project0::import(string)?;
         Ok(Self {
             annotations: annotations::Annotations::import(&project0.annotations)?,
-            transactions: project0.transactions
+            transactions: project0
+                .transactions
                 .into_iter()
                 .map(Transaction::from_transaction0)
                 .collect(),
@@ -170,7 +176,8 @@ mod test {
     "#;
 
     fn project_expected() -> Project {
-        let txid = Txid::new("f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16").unwrap();
+        let txid =
+            Txid::new("f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16").unwrap();
         let mut a = Annotations::default();
         a.set_tx_color(txid, Color32::from_rgb(0, 255, 0));
         a.set_tx_label(txid, "First Tx".to_string());
@@ -181,7 +188,10 @@ mod test {
             annotations: a,
             transactions: vec![
                 Transaction {
-                    txid: Txid::new("ea44e97271691990157559d0bdd9959e02790c34db6c006d779e82fa5aee708e").unwrap(),
+                    txid: Txid::new(
+                        "ea44e97271691990157559d0bdd9959e02790c34db6c006d779e82fa5aee708e",
+                    )
+                    .unwrap(),
                     position: Pos2::new(711.0, 351.0),
                 },
                 Transaction {

@@ -3,7 +3,6 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use egui::{
     ahash::HashSet, Button, CursorIcon, Frame, Key, Pos2, Rect, Sense, TextEdit, TextStyle, Vec2,
 };
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 
 use crate::{
     annotations::Annotations,
@@ -13,6 +12,7 @@ use crate::{
     framerate::FrameRate,
     graph::Graph,
     layout::Layout,
+    platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
     widgets::BulletPoint,
@@ -91,32 +91,6 @@ pub struct App {
     controls_rect: Option<egui::Rect>,
 }
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = addRouteListener)]
-    fn add_route_listener(callback: &Closure<dyn Fn(String)>);
-
-    #[wasm_bindgen(js_name = pushHistoryState)]
-    pub fn push_history_state(url: &str);
-
-    #[wasm_bindgen(js_name = getRandom)]
-    fn get_random() -> f64;
-}
-
-pub fn get_viewport_dimensions() -> Option<Vec2> {
-    let window = web_sys::window()?;
-    let width = window.inner_width().ok()?.as_f64()?;
-    let height = window.inner_height().ok()?.as_f64()?;
-    Some(Vec2::new(width as f32, height as f32))
-}
-
-pub fn get_random_vec2(range: f32) -> Vec2 {
-    Vec2::new(
-        get_random() as f32 * range - range / 2.0,
-        get_random() as f32 * range - range / 2.0,
-    )
-}
-
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -154,37 +128,7 @@ impl App {
 
         let (update_sender, update_receiver) = channel();
 
-        let update_sender2 = update_sender.clone();
-        let ctx = cc.egui_ctx.clone();
-        let closure = Closure::new(move |url: String| {
-            if let Some(txid) = url.strip_prefix("/tx/") {
-                match Txid::new(txid) {
-                    Ok(txid) => {
-                        update_sender2
-                            .send(Update::LoadOrSelectTx { txid, pos: None })
-                            .unwrap();
-                        ctx.request_repaint();
-                    }
-                    Err(err) => {
-                        update_sender2
-                            .send(Update::Error {
-                                err: format!("{}: {}", url, err),
-                            })
-                            .unwrap();
-                    }
-                }
-            } else if url == "/" {
-            } else {
-                update_sender2
-                    .send(Update::Error {
-                        err: format!("Unknown route: {}", url),
-                    })
-                    .unwrap();
-            }
-        });
-
-        add_route_listener(&closure);
-        closure.forget();
+        platform::add_route_listener(update_sender.clone(), cc.egui_ctx.clone());
 
         App {
             store,
@@ -193,7 +137,7 @@ impl App {
             err: String::new(),
             err_open: false,
             flight: Flight::new(),
-            ui_size: get_viewport_dimensions().unwrap_or_default(),
+            ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
             loading: HashSet::default(),
             import_text: String::new(),
             framerate: FrameRate::default(),
@@ -218,10 +162,9 @@ impl App {
                 self.update_sender.send(Update::Loading { txid }).unwrap();
 
                 let sender = self.update_sender.clone();
-                let center = self
-                    .store
-                    .transform
-                    .pos_from_screen((self.ui_size / 2.0 + get_random_vec2(50.0)).to_pos2());
+                let center = self.store.transform.pos_from_screen(
+                    (self.ui_size / 2.0 + platform::get_random_vec2(50.0)).to_pos2(),
+                );
 
                 ehttp::fetch(request, move |response| {
                     sender.send(Update::LoadingDone { txid }).unwrap();
@@ -296,7 +239,7 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        self.ui_size = get_viewport_dimensions().unwrap_or(ctx.screen_rect().size());
+        self.ui_size = platform::get_viewport_dimensions().unwrap_or(ctx.screen_rect().size());
 
         self.framerate
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
@@ -344,11 +287,12 @@ impl eframe::App for App {
                                     }
 
                                     let num_txs = project.transactions.len() as f32;
-                                    let graph_center =
-                                        (project.transactions.iter().fold(Vec2::ZERO, |pos, tx| {
-                                            pos + tx.position.to_vec2()
-                                        }) / num_txs)
-                                            .to_pos2();
+                                    let graph_center = (project
+                                        .transactions
+                                        .iter()
+                                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
+                                        / num_txs)
+                                        .to_pos2();
                                     let screen_center = self
                                         .store
                                         .transform

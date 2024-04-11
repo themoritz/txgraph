@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use egui::{Color32, FontId, Response, Stroke, Widget};
-use wasm_bindgen::prelude::wasm_bindgen;
 
 pub struct Style {
     pub tx_width: f32,
@@ -105,18 +104,12 @@ pub enum Theme {
     System,
 }
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = isDarkMode)]
-    fn is_dark_mode() -> bool;
-}
-
 impl Theme {
     fn is_dark_mode(&self) -> bool {
         match self {
             Theme::Light => false,
             Theme::Dark => true,
-            Theme::System => is_dark_mode(),
+            Theme::System => dark_light::detect() == dark_light::Mode::Dark,
         }
     }
 }
