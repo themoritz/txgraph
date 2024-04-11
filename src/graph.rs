@@ -732,17 +732,21 @@ impl Graph {
                 if *other_txid == *txid {
                     continue;
                 }
-                let diff = other_rect.center() - rect.center();
+
                 let spacing = clear_spacing(rect, other_rect);
+
+                // Repulsion does not apply across connected components if the nodes aren't close to each other.
+                if !self.components.connected(*txid, *other_txid)
+                    && spacing > 0.5 * layout.force_params.scale
+                {
+                    continue;
+                }
+
+                let diff = other_rect.center() - rect.center();
                 let force = -scale2 / spacing.powf(layout.force_params.tx_repulsion_dropoff)
                     * diff.normalized();
 
-                // Repulsion does not apply across connected components if the nodes aren't close to each other.
-                if self.components.connected(*txid, *other_txid)
-                    || spacing <= 0.5 * layout.force_params.scale
-                {
-                    self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
-                }
+                self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
             }
         }
 

@@ -3,6 +3,15 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+    #[cfg(feature = "puffin")]
+    let _puffin_server = {
+        let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+        let puffin_server = puffin_http::Server::new(&server_addr).unwrap();
+        eprintln!("Run this to view profiling data:  puffin_viewer {server_addr}");
+        puffin::set_scopes_on(true);
+        puffin_server
+    };
+
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 

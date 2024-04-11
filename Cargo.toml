@@ -5,9 +5,16 @@ authors = ["Moritz Drexl <mdrexl@fastmail.fm>"]
 edition = "2021"
 rust-version = "1.65"
 
+[features]
+# To use profiling, just sprinkle `puffin::profile_function!()` calls in your code.
+#
+# Then run like this:
+# $ cargo run --release --features profiling
+profiling = ["puffin", "puffin_http", "eframe/puffin"]
+
 [dependencies]
 egui = "0.27.1"
-eframe = { version = "0.27.1", default-features = false, features = [ "glow", "persistence" ] }
+eframe = { version = "0.27.1", default-features = false, features = ["glow", "persistence"] }
 ehttp = "0.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
@@ -18,9 +25,10 @@ dark-light = "1.1.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-eframe = { version = "0.27.1", default-features = false, features = [ "glow", "persistence", "puffin" ] }
 tracing-subscriber = "0.3"
 rand = "0.8.5"
+puffin = {version = "0.19.0", optional = true }
+puffin_http = { version = "0.16", optional = true }
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
