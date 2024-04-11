@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fmt::Write, sync::mpsc::Sender};
 
 use egui::{
-    ahash::HashSet, show_tooltip_at_pointer, text::LayoutJob, Align, Color32, CursorIcon, FontId,
-    Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
+    ahash::HashSet, text::LayoutJob, Align, Color32, CursorIcon, FontId, Mesh, Pos2, Rect,
+    RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -372,12 +372,9 @@ impl Graph {
                 to: to_rect.left_top(),
                 to_width: to_rect.width(),
             };
-            let response = flow.draw(ui, color, transform);
 
-            // TODO: Context menu for coin?
-            if response.hovering {
-                let id = ui.id().with("edge").with(edge);
-                show_tooltip_at_pointer(ui.ctx(), id, |ui| {
+            if let Some(response) = flow.draw(ui, color, transform, &coin) {
+                let response = response.on_hover_ui_at_pointer(|ui| {
                     if let Some(label) = annotations.coin_label(coin) {
                         ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
                     }
@@ -388,14 +385,16 @@ impl Graph {
                     address_layout(&mut job, &input.address, input.address_type, &style);
                     ui.label(job);
                 });
-            }
+                response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
-            if response.clicked {
-                ui.output_mut(|o| {
-                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
-                        .address
-                        .clone()
-                });
+                if response.clicked {
+                    ui.output_mut(|o| {
+                        o.copied_text = self.nodes.get(&edge.target).unwrap().inputs
+                            [edge.target_pos]
+                            .address
+                            .clone()
+                    });
+                }
             }
         }
 

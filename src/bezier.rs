@@ -1,6 +1,6 @@
-use egui::{Color32, Mesh, Pos2, Vec2};
+use egui::{Color32, Mesh, Pos2, Sense, Vec2};
 
-use crate::transform::Transform;
+use crate::{bitcoin::Txid, transform::Transform};
 
 pub struct Cubic {
     p0: Pos2,
@@ -46,6 +46,7 @@ impl Cubic {
         )
     }
 }
+
 pub struct Edge {
     pub from: Pos2,
     pub from_width: f32,
@@ -54,7 +55,13 @@ pub struct Edge {
 }
 
 impl Edge {
-    pub fn draw(&self, ui: &egui::Ui, color: Color32, transform: &Transform) -> EdgeResponse {
+    pub fn draw(
+        &self,
+        ui: &egui::Ui,
+        color: Color32,
+        transform: &Transform,
+        coin: &(Txid, usize),
+    ) -> Option<egui::Response> {
         let left = Cubic::sankey(self.from, self.to);
         let right = Cubic::sankey(
             self.from + Vec2::new(self.from_width, 0.0),
@@ -74,7 +81,6 @@ impl Edge {
 
         let pointer = ui.ctx().pointer_latest_pos();
         let mut hovering = false;
-        let mut clicked = false;
         if let Some(p) = pointer {
             for n in 1..=steps {
                 // Assuming that top and bot have the same x coords.
@@ -85,7 +91,6 @@ impl Edge {
                     let rb = rights[n];
                     if (lb - lt).rot90().dot(p - lt) >= 0. && (rb - rt).rot90().dot(p - rt) <= 0. {
                         hovering = true;
-                        clicked = ui.input(|i| i.pointer.primary_clicked());
                         break;
                     }
                 }
@@ -166,11 +171,16 @@ impl Edge {
         mesh.add_triangle(3, 4, 5);
         ui.painter().add(mesh);
 
-        EdgeResponse { hovering, clicked }
+        if hovering {
+            pointer.map(|p| {
+                ui.interact(
+                    egui::Rect::from_center_size(p, Vec2::splat(5.)),
+                    ui.id().with(coin),
+                    Sense::click(),
+                )
+            })
+        } else {
+            None
+        }
     }
-}
-
-pub struct EdgeResponse {
-    pub hovering: bool,
-    pub clicked: bool,
 }
