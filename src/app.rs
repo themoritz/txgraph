@@ -418,6 +418,7 @@ impl eframe::App for App {
                         for (name, txid) in interesting_txs {
                             if ui.button(name).clicked() {
                                 load_tx(Txid::new(txid).unwrap(), None);
+                                ui.close_menu();
                             }
                         }
 
