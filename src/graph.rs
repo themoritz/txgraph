@@ -373,8 +373,9 @@ impl Graph {
                 to_width: to_rect.width(),
             };
 
-            if let Some(response) = flow.draw(ui, color, transform, &coin) {
-                let response = response.on_hover_ui_at_pointer(|ui| {
+            let response = flow
+                .draw(ui, color, transform, &coin)
+                .on_hover_ui_at_pointer(|ui| {
                     if let Some(label) = annotations.coin_label(coin) {
                         ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
                     }
@@ -385,16 +386,14 @@ impl Graph {
                     address_layout(&mut job, &input.address, input.address_type, &style);
                     ui.label(job);
                 });
-                response.context_menu(|ui| annotations.coin_menu(coin, ui));
+            response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
-                if response.clicked {
-                    ui.output_mut(|o| {
-                        o.copied_text = self.nodes.get(&edge.target).unwrap().inputs
-                            [edge.target_pos]
-                            .address
-                            .clone()
-                    });
-                }
+            if response.clicked {
+                ui.output_mut(|o| {
+                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
+                        .address
+                        .clone()
+                });
             }
         }
 

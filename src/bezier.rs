@@ -61,7 +61,7 @@ impl Edge {
         color: Color32,
         transform: &Transform,
         coin: &(Txid, usize),
-    ) -> Option<egui::Response> {
+    ) -> egui::Response {
         let left = Cubic::sankey(self.from, self.to);
         let right = Cubic::sankey(
             self.from + Vec2::new(self.from_width, 0.0),
@@ -171,16 +171,17 @@ impl Edge {
         mesh.add_triangle(3, 4, 5);
         ui.painter().add(mesh);
 
-        if hovering {
-            pointer.map(|p| {
-                ui.interact(
-                    egui::Rect::from_center_size(p, Vec2::splat(5.)),
-                    ui.id().with(coin),
-                    Sense::click(),
-                )
-            })
+        let id = ui.id().with("edge").with(coin);
+        if let (Some(p), true) = (pointer, hovering) {
+            ui.interact(
+                egui::Rect::from_center_size(p, Vec2::splat(50.)),
+                id,
+                Sense::click(),
+            )
         } else {
-            None
+            // We need a form of Response with the same id even when we're not hovering so that
+            // context menus don't disappear when leaving the edge.
+            ui.interact(egui::Rect::ZERO, id, Sense::hover())
         }
     }
 }
