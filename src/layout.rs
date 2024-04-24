@@ -8,6 +8,12 @@ use crate::bitcoin::Sats;
 pub struct Layout {
     pub force_params: ForceParams,
     pub scale: Scale,
+    #[serde(default = "default_as_true")]
+    pub show_arrows: bool,
+}
+
+fn default_as_true() -> bool {
+    true
 }
 
 impl Layout {
@@ -15,6 +21,9 @@ impl Layout {
         self.force_params.ui(ui);
         ui.separator();
         self.scale.ui(ui);
+        ui.separator();
+        ui.label(RichText::new("Misc:").strong());
+        ui.checkbox(&mut self.show_arrows, "Show arrows on edges");
     }
 }
 

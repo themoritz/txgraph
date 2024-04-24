@@ -374,7 +374,7 @@ impl Graph {
             };
 
             let response = flow
-                .draw(ui, color, transform, &coin)
+                .draw(ui, color, layout.show_arrows, transform, &coin)
                 .on_hover_ui_at_pointer(|ui| {
                     if let Some(label) = annotations.coin_label(coin) {
                         ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
