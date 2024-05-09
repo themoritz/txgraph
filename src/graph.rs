@@ -1097,7 +1097,7 @@ fn rect_striped(ui: &egui::Ui, rect: Rect, color: Color32) {
         start += Vec2::new(width * 2.0, 0.);
         i0 += 4;
 
-        if start.x > rect.right_top().x + width {
+        if start.x > rect.right_top().x + rect.height() + width {
             break;
         }
     }
