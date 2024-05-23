@@ -65,6 +65,10 @@ pub mod inner {
             get_random() as f32 * range - range / 2.0,
         )
     }
+
+    pub fn get_random_int(max: usize) -> usize {
+        (get_random() * max as f64) as usize
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -88,5 +92,10 @@ pub mod inner {
         let mut rng = ThreadRng::default();
         let half = range / 2.;
         Vec2::new(rng.gen_range(-half..half), rng.gen_range(-half..half))
+    }
+
+    pub fn get_random_int(max: usize) -> usize {
+        let mut rng = ThreadRng::default();
+        rng.gen_range(0..max)
     }
 }

@@ -107,7 +107,6 @@ impl Edge {
         };
 
         if draw_arrow {
-
             let start = 0.3;
             let arrow_width = 2;
             let arrow_length = 4;
@@ -173,9 +172,7 @@ impl Edge {
             mesh.add_triangle(2, 3, 4);
             mesh.add_triangle(3, 4, 5);
             ui.painter().add(mesh);
-
         } else {
-
             let mut mesh = Mesh::default();
             mesh.colored_vertex(lefts[0], color);
             mesh.colored_vertex(rights[0], color);
@@ -187,7 +184,6 @@ impl Edge {
                 mesh.add_triangle(i0 + 1, i0 + 2, i0 + 3);
             }
             ui.painter().add(mesh);
-
         }
 
         let id = ui.id().with("edge").with(coin);
