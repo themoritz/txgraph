@@ -1,5 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
+mod account;
 mod annotations;
 mod app;
 mod bezier;

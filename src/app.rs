@@ -3,6 +3,7 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, Vec2};
 
 use crate::{
+    account::Account,
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
     client::Client,
@@ -18,6 +19,8 @@ use crate::{
     style::{Theme, ThemeSwitch},
     transform::Transform,
 };
+
+pub const API_BASE: &str = "http://localhost:1337/api";
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Default, serde::Deserialize, serde::Serialize)]
@@ -65,6 +68,7 @@ pub struct App {
     custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
+    account: Account,
 }
 
 impl App {
@@ -116,6 +120,7 @@ impl App {
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
+            account: Account::new(),
         }
     }
 
@@ -251,6 +256,10 @@ impl eframe::App for App {
                             ui.close_menu();
                         }
                     });
+
+                    ui.separator();
+
+                    self.account.show_ui(ui);
                 });
 
                 ui.menu_button("Tx", |ui| {
