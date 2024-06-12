@@ -6,6 +6,7 @@ use egui::{
 };
 
 use crate::{
+    account::Account,
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
     export::Project,
@@ -18,6 +19,8 @@ use crate::{
     transform::Transform,
     widgets::BulletPoint,
 };
+
+pub const API_BASE: &str = "http://localhost:1337/api";
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -90,6 +93,7 @@ pub struct App {
     framerate: FrameRate,
     about_open: bool,
     about_rect: Option<egui::Rect>,
+    account: Account,
 }
 
 impl App {
@@ -144,6 +148,7 @@ impl App {
             framerate: FrameRate::default(),
             about_open: true,
             about_rect: None,
+            account: Account::new(),
         }
     }
 
@@ -159,7 +164,7 @@ impl App {
                     return;
                 }
 
-                let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
+                let request = ehttp::Request::get(format!("{API_BASE}/tx/{txid}"));
                 self.update_sender.send(Update::Loading { txid }).unwrap();
 
                 let sender = self.update_sender.clone();
@@ -309,6 +314,10 @@ impl eframe::App for App {
                             ui.close_menu();
                         }
                     });
+
+                    ui.separator();
+
+                    self.account.show_ui(ui);
                 });
 
                 ui.menu_button("Tx", |ui| {
