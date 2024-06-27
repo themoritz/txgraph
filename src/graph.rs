@@ -317,6 +317,8 @@ impl Graph {
     ) {
         let style = style::get(ui);
 
+        let clip_rect = ui.clip_rect();
+
         for node in self.nodes.values_mut() {
             node.scale(&layout.scale);
         }
@@ -363,6 +365,11 @@ impl Graph {
             let from_rect = output_rects.get(&(edge.source, edge.source_pos)).unwrap();
             let to_rect = input_rects.get(&(edge.target, edge.target_pos)).unwrap();
 
+            let bounding_rect = transform.rect_to_screen(from_rect.union(*to_rect));
+            if !clip_rect.intersects(bounding_rect) {
+                continue;
+            }
+
             let coin = (edge.source, edge.source_pos);
             let color = annotations.coin_color(coin).unwrap_or(Color32::GOLD);
 
@@ -404,8 +411,13 @@ impl Graph {
         let txids: HashSet<Txid> = self.nodes.keys().copied().collect();
 
         for (txid, node) in &mut self.nodes {
+            let outer_rect = transform.rect_to_screen(*outer_rects.get(txid).unwrap());
+
+            if !clip_rect.intersects(outer_rect.expand(style.selected_stroke_width * 2.0)) {
+                continue;
+            }
+
             if Some(*txid) == self.selected_node {
-                let outer_rect = transform.rect_to_screen(*outer_rects.get(txid).unwrap());
                 painter.rect(
                     outer_rect.expand(style.selected_stroke_width / 2.0),
                     Rounding::ZERO,
@@ -725,6 +737,11 @@ impl Graph {
 
         let scale2 = layout.force_params.scale * layout.force_params.scale;
 
+        fn kernel(radius: f32, dst: f32) -> f32 {
+            let value = (1.0 - dst / radius * dst / radius).max(0.0);
+            value * value
+        }
+
         for (txid, rect) in &outer_rects {
             for (other_txid, other_rect) in &outer_rects {
                 if *other_txid == *txid {
@@ -733,15 +750,13 @@ impl Graph {
 
                 let spacing = clear_spacing(rect, other_rect);
 
-                // Repulsion does not apply across connected components if the nodes aren't close to each other.
-                if !self.components.connected(*txid, *other_txid)
-                    && spacing > 0.5 * layout.force_params.scale
-                {
+                // If the spacing is outside of the force radius we don't need to calculate the force
+                if spacing > layout.force_params.tx_repulsion_radius {
                     continue;
                 }
 
                 let diff = other_rect.center() - rect.center();
-                let force = -scale2 / spacing.powf(layout.force_params.tx_repulsion_dropoff)
+                let force = -scale2 / spacing * kernel(layout.force_params.tx_repulsion_radius, spacing)
                     * diff.normalized();
 
                 self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
@@ -763,7 +778,6 @@ impl Graph {
             // Attraction force between nodes
             let diff = to_rect.center_top() - from_rect.center_bottom();
             let mut force = diff.length_sq() / layout.force_params.scale * diff.normalized();
-            force.x /= layout.force_params.spread;
 
             // Repulsion force between layers
             force -= Vec2::new(0.0, scale2 / diff.y.max(2.0));

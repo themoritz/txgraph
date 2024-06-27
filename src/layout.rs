@@ -33,8 +33,7 @@ pub struct ForceParams {
     pub scale: f32,
     pub dt: f32,
     pub cooloff: f32,
-    pub spread: f32,
-    pub tx_repulsion_dropoff: f32,
+    pub tx_repulsion_radius: f32,
 }
 
 impl Default for ForceParams {
@@ -43,8 +42,7 @@ impl Default for ForceParams {
             scale: 50.0,
             dt: 0.08,
             cooloff: 0.85,
-            spread: 0.75,
-            tx_repulsion_dropoff: 1.2,
+            tx_repulsion_radius: 150.0,
         }
     }
 }
@@ -58,12 +56,8 @@ impl ForceParams {
             ui.add(egui::Slider::new(&mut self.scale, 5.0..=200.0));
             ui.end_row();
 
-            ui.label("Spread:");
-            ui.add(egui::Slider::new(&mut self.spread, 0.2..=5.0));
-            ui.end_row();
-
-            ui.label("Tx repulsion factor:");
-            ui.add(egui::Slider::new(&mut self.tx_repulsion_dropoff, 0.5..=2.0));
+            ui.label("Tx repulsion radius:");
+            ui.add(egui::Slider::new(&mut self.tx_repulsion_radius, 50.0..=500.0));
             ui.end_row();
 
             ui.label("Speed:");
