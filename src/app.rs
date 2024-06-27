@@ -6,17 +6,7 @@ use egui::{
 };
 
 use crate::{
-    annotations::Annotations,
-    bitcoin::{Transaction, Txid},
-    export::Project,
-    flight::Flight,
-    framerate::FrameRate,
-    graph::Graph,
-    layout::Layout,
-    platform::inner as platform,
-    style::{Theme, ThemeSwitch},
-    transform::Transform,
-    widgets::BulletPoint,
+    annotations::Annotations, bitcoin::{Transaction, Txid}, export::Project, flight::Flight, force::ForceCalculator, framerate::FrameRate, graph::Graph, layout::Layout, platform::inner as platform, style::{Theme, ThemeSwitch}, transform::Transform, widgets::BulletPoint
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -90,6 +80,7 @@ pub struct App {
     framerate: FrameRate,
     about_open: bool,
     about_rect: Option<egui::Rect>,
+    force_calculator: ForceCalculator,
 }
 
 impl App {
@@ -144,6 +135,7 @@ impl App {
             framerate: FrameRate::default(),
             about_open: true,
             about_rect: None,
+            force_calculator: ForceCalculator::new(cc.gl.as_ref().unwrap().clone()),
         }
     }
 
@@ -465,6 +457,7 @@ impl eframe::App for App {
                 &self.store.layout,
                 &mut self.store.annotations,
                 &self.loading,
+                &self.force_calculator,
             );
         });
 

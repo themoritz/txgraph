@@ -13,6 +13,7 @@ use crate::{
     bitcoin::{AddressType, AmountComponents, Sats, SatsDisplay, Transaction, Txid},
     components::Components,
     export,
+    force::ForceCalculator,
     layout::{Layout, Scale},
     platform::inner::push_history_state,
     style::{self, Style},
@@ -314,6 +315,7 @@ impl Graph {
         layout: &Layout,
         annotations: &mut Annotations,
         loading_txids: &HashSet<Txid>,
+        force_calculator: &ForceCalculator,
     ) {
         let style = style::get(ui);
 
@@ -737,30 +739,14 @@ impl Graph {
 
         let scale2 = layout.force_params.scale * layout.force_params.scale;
 
-        fn kernel(radius: f32, dst: f32) -> f32 {
-            let value = (1.0 - dst / radius * dst / radius).max(0.0);
-            value * value
-        }
-
-        for (txid, rect) in &outer_rects {
-            for (other_txid, other_rect) in &outer_rects {
-                if *other_txid == *txid {
-                    continue;
-                }
-
-                let spacing = clear_spacing(rect, other_rect);
-
-                // If the spacing is outside of the force radius we don't need to calculate the force
-                if spacing > layout.force_params.tx_repulsion_radius {
-                    continue;
-                }
-
-                let diff = other_rect.center() - rect.center();
-                let force = -scale2 / spacing * kernel(layout.force_params.tx_repulsion_radius, spacing)
-                    * diff.normalized();
-
-                self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
-            }
+        let (txids, rects): (Vec<Txid>, Vec<Rect>) = outer_rects.iter().unzip();
+        let forces = force_calculator.calculate_forces(
+            layout.force_params.scale,
+            layout.force_params.tx_repulsion_radius,
+            &rects,
+        );
+        for (txid, force) in txids.iter().zip(forces) {
+            self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
         }
 
         // Calculate edge multiplicities to deal with transactions sharing
@@ -801,12 +787,6 @@ impl Graph {
             }
         }
     }
-}
-
-fn clear_spacing(a: &Rect, b: &Rect) -> f32 {
-    let x = (a.center().x - b.center().x).abs() - (b.width() + a.width()) / 2.0;
-    let y = (a.center().y - b.center().y).abs() - (b.height() + a.height()) / 2.0;
-    x.max(y).max(2.0)
 }
 
 fn tx_content(
