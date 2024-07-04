@@ -4,7 +4,7 @@
 
 Interactive [Sankey style](https://en.wikipedia.org/wiki/Sankey_diagram) visualization of the Bitcoin transaction graph.
 
-![](./docs/screenshot.png)
+<img width="597" alt="txgraph.info" src="https://github.com/themoritz/themoritz/assets/3522732/3a0935b6-84ed-4380-9bdf-8ad97ce12ab8">
 
 #### Features
 * Expand/collapse transaction inputs and outputs
