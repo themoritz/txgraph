@@ -31,6 +31,7 @@ pub struct AppStore {
     transform: Transform,
     annotations: Annotations,
     theme: Theme,
+    about_open: bool,
 }
 
 impl AppStore {
@@ -48,6 +49,7 @@ impl Default for AppStore {
             transform: Default::default(),
             annotations: Default::default(),
             theme: Default::default(),
+            about_open: true,
         }
     }
 }
@@ -83,7 +85,6 @@ pub struct App {
     ui_size: Vec2,
     import_text: String,
     framerate: FrameRate,
-    about_open: bool,
     about_rect: Option<egui::Rect>,
 }
 
@@ -136,7 +137,6 @@ impl App {
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
             import_text: String::new(),
             framerate: FrameRate::default(),
-            about_open: true,
             about_rect: None,
         }
     }
@@ -205,7 +205,7 @@ impl App {
                 if let Some(pos) = self.store.graph.get_tx_pos(txid) {
                     if let Some(rect) = self.about_rect {
                         if rect.contains(self.store.transform.pos_to_screen(pos)) {
-                            self.about_open = false;
+                            self.store.about_open = false;
                         }
                     }
                 }
@@ -249,8 +249,8 @@ impl eframe::App for App {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.selectable_label(self.about_open, "About").clicked() {
-                    self.about_open = !self.about_open;
+                if ui.selectable_label(self.store.about_open, "About").clicked() {
+                    self.store.about_open = !self.store.about_open;
                 }
 
                 ui.separator();
@@ -456,7 +456,7 @@ impl eframe::App for App {
         });
 
         let response = egui::Window::new("txgraph.info")
-            .open(&mut self.about_open)
+            .open(&mut self.store.about_open)
             .show(ctx, |ui| {
                 ui.label("Visualizing Bitcoin's transaction graph.");
 
