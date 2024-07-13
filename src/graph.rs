@@ -14,6 +14,7 @@ use crate::{
     components::Components,
     export,
     layout::{Layout, Scale},
+    loading::Loading,
     platform::inner::push_history_state,
     style::{self, Style},
     transform::Transform,
@@ -313,7 +314,6 @@ impl Graph {
         update_sender: Sender<Update>,
         layout: &Layout,
         annotations: &mut Annotations,
-        loading_txids: &HashSet<Txid>,
     ) {
         let style = style::get(ui);
 
@@ -575,7 +575,7 @@ impl Graph {
                     Stroke::NONE,
                 );
 
-                if loading_txids.contains(&input.funding_txid) {
+                if Loading::is_txid_loading(ui, &input.funding_txid) {
                     rect_striped(
                         ui,
                         screen_rect,
@@ -707,7 +707,7 @@ impl Graph {
                 );
 
                 if let OutputType::Spent { spending_txid, .. } = output.output_type {
-                    if loading_txids.contains(&spending_txid) {
+                    if Loading::is_txid_loading(ui, &spending_txid) {
                         rect_striped(
                             ui,
                             screen_rect,
@@ -756,7 +756,8 @@ impl Graph {
                 }
 
                 let diff = other_rect.center() - rect.center();
-                let force = -scale2 / spacing * kernel(layout.force_params.tx_repulsion_radius, spacing)
+                let force = -scale2 / spacing
+                    * kernel(layout.force_params.tx_repulsion_radius, spacing)
                     * diff.normalized();
 
                 self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;

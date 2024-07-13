@@ -10,6 +10,7 @@ mod flight;
 mod framerate;
 mod graph;
 mod layout;
+mod loading;
 mod platform;
 mod style;
 mod transform;

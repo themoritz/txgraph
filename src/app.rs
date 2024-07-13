@@ -1,8 +1,7 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
 use egui::{
-    ahash::HashSet, Button, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit,
-    TextStyle, Vec2,
+    Button, Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, TextStyle, Vec2,
 };
 
 use crate::{
@@ -13,11 +12,14 @@ use crate::{
     framerate::FrameRate,
     graph::Graph,
     layout::Layout,
+    loading::Loading,
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
     widgets::BulletPoint,
 };
+
+pub const API_BASE: &str = "https://txgraph.info/api";
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -66,12 +68,6 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
-    Loading {
-        txid: Txid,
-    },
-    LoadingDone {
-        txid: Txid,
-    },
     Error {
         err: String,
     },
@@ -83,7 +79,6 @@ pub struct App {
     update_receiver: Receiver<Update>,
     err: String,
     err_open: bool,
-    loading: HashSet<Txid>,
     flight: Flight,
     ui_size: Vec2,
     import_text: String,
@@ -139,7 +134,6 @@ impl App {
             err_open: false,
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
-            loading: HashSet::default(),
             import_text: String::new(),
             framerate: FrameRate::default(),
             about_open: true,
@@ -147,7 +141,7 @@ impl App {
         }
     }
 
-    pub fn apply_update(&mut self, update: Update) {
+    pub fn apply_update(&mut self, ctx: &Context, update: Update) {
         match update {
             Update::LoadOrSelectTx { txid, pos } => {
                 if let Some(existing_pos) = self.store.graph.get_tx_pos(txid) {
@@ -159,16 +153,18 @@ impl App {
                     return;
                 }
 
-                let request = ehttp::Request::get(format!("https://txgraph.info/api/tx/{}", txid));
-                self.update_sender.send(Update::Loading { txid }).unwrap();
+                let request = ehttp::Request::get(format!("{API_BASE}/tx/{txid}"));
+                Loading::start_loading_txid(ctx, txid);
 
                 let sender = self.update_sender.clone();
                 let center = self.store.transform.pos_from_screen(
                     (self.ui_size / 2.0 + platform::get_random_vec2(50.0)).to_pos2(),
                 );
 
+                let ctx = ctx.clone();
+
                 ehttp::fetch(request, move |response| {
-                    sender.send(Update::LoadingDone { txid }).unwrap();
+                    Loading::loading_txid_done(&ctx, txid);
                     let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
                     match response {
                         Ok(response) => {
@@ -219,12 +215,6 @@ impl App {
             }
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
-            }
-            Update::Loading { txid } => {
-                self.loading.insert(txid);
-            }
-            Update::LoadingDone { txid } => {
-                self.loading.remove(&txid);
             }
             Update::Error { err } => {
                 self.err = err;
@@ -379,9 +369,7 @@ impl eframe::App for App {
 
                 ui.add(ThemeSwitch::new(&mut self.store.theme));
 
-                if !self.loading.is_empty() {
-                    ui.spinner();
-                }
+                Loading::spinner(ui);
             });
         });
 
@@ -452,7 +440,7 @@ impl eframe::App for App {
 
             loop {
                 match self.update_receiver.try_recv() {
-                    Ok(update) => self.apply_update(update),
+                    Ok(update) => self.apply_update(ctx, update),
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
                 }
@@ -464,7 +452,6 @@ impl eframe::App for App {
                 sender2,
                 &self.store.layout,
                 &mut self.store.annotations,
-                &self.loading,
             );
         });
 
