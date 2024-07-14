@@ -10,6 +10,9 @@ pub mod inner {
 
     #[wasm_bindgen]
     extern "C" {
+        #[wasm_bindgen(js_namespace = console)]
+        fn log(s: &str);
+
         #[wasm_bindgen(js_name = addRouteListener)]
         fn add_route_listener_impl(callback: &Closure<dyn Fn(String)>);
 
@@ -18,6 +21,15 @@ pub mod inner {
 
         #[wasm_bindgen(js_name = getRandom)]
         fn get_random() -> f64;
+    }
+
+    #[wasm_bindgen]
+    pub fn version() {
+        let mut hash = env!("GIT_COMMIT_HASH").to_string();
+        hash.truncate(7);
+        let pkg_version = env!("CARGO_PKG_VERSION");
+        log(&format!("Version: {pkg_version}"));
+        log(&format!("Git: {hash}"));
     }
 
     pub fn add_route_listener(sender: Sender<Update>, ctx: egui::Context) {

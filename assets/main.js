@@ -18,3 +18,7 @@ function pushHistoryState(url) {
 function getRandom() {
   return Math.random()
 }
+
+window.addEventListener('TrunkApplicationStarted', (_) => {
+  version = window.wasmBindings.version;
+});
