@@ -11,7 +11,6 @@ use crate::{
     app::Update,
     bezier::Edge,
     bitcoin::{AddressType, AmountComponents, Sats, SatsDisplay, Transaction, Txid},
-    components::Components,
     export,
     layout::{Layout, Scale},
     loading::Loading,
@@ -20,12 +19,11 @@ use crate::{
     transform::Transform,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct Graph {
     nodes: HashMap<Txid, DrawableNode>,
     edges: Vec<DrawableEdge>,
     selected_node: Option<Txid>,
-    components: Components,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -164,17 +162,6 @@ pub enum OutputType {
     Fees,
 }
 
-impl Default for Graph {
-    fn default() -> Self {
-        Self {
-            nodes: HashMap::new(),
-            edges: Vec::new(),
-            selected_node: None,
-            components: Components::new(),
-        }
-    }
-}
-
 impl Graph {
     pub fn export(&self) -> Vec<export::Transaction> {
         self.nodes
@@ -184,7 +171,6 @@ impl Graph {
     }
 
     fn add_edge(&mut self, edge: DrawableEdge) {
-        self.components.connect(edge.source, edge.target);
         self.edges.push(edge);
     }
 
@@ -200,12 +186,6 @@ impl Graph {
         self.nodes.remove(&txid);
         self.edges
             .retain(|edge| edge.source != txid && edge.target != txid);
-
-        // Recreate connected components
-        self.components = Components::new();
-        for edge in &self.edges {
-            self.components.connect(edge.source, edge.target);
-        }
     }
 
     pub fn add_tx(&mut self, txid: Txid, tx: Transaction, pos: Pos2) {
