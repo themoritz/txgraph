@@ -7,6 +7,7 @@ pub mod inner {
 
     use crate::app::Update;
     use crate::bitcoin::Txid;
+    use crate::notifications::Notifications;
 
     #[wasm_bindgen]
     extern "C" {
@@ -43,20 +44,16 @@ pub mod inner {
                         ctx.request_repaint();
                     }
                     Err(err) => {
-                        sender
-                            .send(Update::Error {
-                                err: format!("{}: {}", url, err),
-                            })
-                            .unwrap();
+                        Notifications::error(
+                            &ctx,
+                            "Can't navigate to transaction.".to_string(),
+                            Some(err),
+                        );
                     }
                 }
             } else if url == "/" {
             } else {
-                sender
-                    .send(Update::Error {
-                        err: format!("Unknown route: {}", url),
-                    })
-                    .unwrap();
+                Notifications::error(&ctx, "Unknown route.".to_string(), Some(url));
             }
         });
 

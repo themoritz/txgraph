@@ -13,6 +13,7 @@ use crate::{
     graph::Graph,
     layout::Layout,
     loading::Loading,
+    notifications::Notifications,
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
@@ -70,17 +71,12 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
-    Error {
-        err: String,
-    },
 }
 
 pub struct App {
     store: AppStore,
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
-    err: String,
-    err_open: bool,
     flight: Flight,
     ui_size: Vec2,
     import_text: String,
@@ -131,8 +127,6 @@ impl App {
             store,
             update_sender,
             update_receiver,
-            err: String::new(),
-            err_open: false,
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
             import_text: String::new(),
@@ -165,7 +159,13 @@ impl App {
 
                 ehttp::fetch(request, move |response| {
                     Loading::loading_txid_done(&ctx, txid);
-                    let error = |e: String| sender.send(Update::Error { err: e }).unwrap();
+                    let error = |e: String| {
+                        Notifications::error(
+                            &ctx,
+                            "Failed fetching transaction.".to_string(),
+                            Some(e),
+                        )
+                    };
                     match response {
                         Ok(response) => {
                             if response.status == 200 {
@@ -216,10 +216,6 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
             }
-            Update::Error { err } => {
-                self.err = err;
-                self.err_open = true
-            }
         }
     }
 }
@@ -249,7 +245,10 @@ impl eframe::App for App {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.selectable_label(self.store.about_open, "About").clicked() {
+                if ui
+                    .selectable_label(self.store.about_open, "About")
+                    .clicked()
+                {
                     self.store.about_open = !self.store.about_open;
                 }
 
@@ -290,11 +289,11 @@ impl eframe::App for App {
 
                                     self.import_text = String::new();
                                 }
-                                Err(e) => sender
-                                    .send(Update::Error {
-                                        err: format!("Could not import Json because:\n{}", e),
-                                    })
-                                    .unwrap(),
+                                Err(e) => Notifications::error(
+                                    ctx,
+                                    "Could not import Json".to_string(),
+                                    Some(e),
+                                ),
                             }
                             ui.close_menu();
                         }
@@ -491,10 +490,6 @@ impl eframe::App for App {
 
         self.about_rect = response.map(|r| r.response.rect);
 
-        egui::Window::new("Error")
-            .open(&mut self.err_open)
-            .show(ctx, |ui| {
-                ui.label(&self.err);
-            });
+        Notifications::show(ctx);
     }
 }

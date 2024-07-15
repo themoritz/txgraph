@@ -9,11 +9,11 @@ use egui::{
 use crate::bitcoin::Txid;
 
 #[derive(Clone)]
-struct LoadingStore {
+struct State {
     txids: Arc<Mutex<HashSet<Txid>>>,
 }
 
-impl LoadingStore {
+impl State {
     fn new() -> Self {
         Self {
             txids: Arc::new(Mutex::new(HashSet::new())),
@@ -48,10 +48,10 @@ impl LoadingStore {
 pub struct Loading {}
 
 impl Loading {
-    fn modify(ctx: &Context, f: impl FnOnce(&LoadingStore)) {
-        let store = LoadingStore::load(ctx);
-        f(&store);
-        store.store(ctx);
+    fn modify(ctx: &Context, f: impl FnOnce(&State)) {
+        let state = State::load(ctx);
+        f(&state);
+        state.store(ctx);
     }
 
     pub fn start_loading_txid(ctx: &Context, txid: Txid) {
@@ -63,13 +63,13 @@ impl Loading {
     }
 
     pub fn spinner(ui: &mut Ui) {
-        let store = LoadingStore::load(ui.ctx());
-        if store.is_loading() {
+        let state = State::load(ui.ctx());
+        if state.is_loading() {
             ui.spinner();
         }
     }
 
     pub fn is_txid_loading(ui: &Ui, txid: &Txid) -> bool {
-        LoadingStore::load(ui.ctx()).is_txid_loading(txid)
+        State::load(ui.ctx()).is_txid_loading(txid)
     }
 }
