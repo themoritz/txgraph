@@ -4,6 +4,7 @@ mod annotations;
 mod app;
 mod bezier;
 mod bitcoin;
+mod components;
 mod notifications;
 mod export;
 mod flight;

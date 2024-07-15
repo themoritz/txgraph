@@ -1,12 +1,11 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{
-    Button, Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, TextStyle, Vec2,
-};
+use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, Vec2};
 
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
+    components::custom_tx::CustomTx,
     export::Project,
     flight::Flight,
     framerate::FrameRate,
@@ -26,7 +25,6 @@ pub const API_BASE: &str = "https://txgraph.info/api";
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
-    tx: String,
     layout: Layout,
     graph: Graph,
     transform: Transform,
@@ -44,7 +42,6 @@ impl AppStore {
 impl Default for AppStore {
     fn default() -> Self {
         AppStore {
-            tx: "".to_owned(),
             layout: Default::default(),
             graph: Default::default(),
             transform: Default::default(),
@@ -80,6 +77,7 @@ pub struct App {
     flight: Flight,
     ui_size: Vec2,
     import_text: String,
+    custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
 }
@@ -130,6 +128,7 @@ impl App {
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
             import_text: String::new(),
+            custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
         }
@@ -302,28 +301,7 @@ impl eframe::App for App {
 
                 ui.menu_button("Tx", |ui| {
                     ui.menu_button("Load Custom Txid", |ui| {
-                        let glyph_width =
-                            ui.fonts(|f| f.glyph_width(&TextStyle::Body.resolve(ui.style()), '0'));
-                        ui.allocate_space(Vec2::new(glyph_width * 63.5, 0.0));
-
-                        ui.add(
-                            TextEdit::singleline(&mut self.store.tx)
-                                .hint_text("Enter Txid")
-                                .desired_width(f32::INFINITY),
-                        );
-
-                        ui.horizontal(|ui| match Txid::new(&self.store.tx) {
-                            Ok(txid) => {
-                                if ui.button("Go").clicked() {
-                                    load_tx(txid, None);
-                                    ui.close_menu();
-                                }
-                            }
-                            Err(e) => {
-                                ui.add_enabled(false, Button::new("Go"));
-                                ui.label(format!("Invalid Txid: {}", e));
-                            }
-                        });
+                        self.custom_tx.ui(ui, load_tx);
                     });
 
                     ui.menu_button("Hallo of Fame", |ui| {
