@@ -5,7 +5,7 @@ use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdi
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
-    components::custom_tx::CustomTx,
+    components::{about::About, custom_tx::CustomTx},
     export::Project,
     flight::Flight,
     framerate::FrameRate,
@@ -16,13 +16,12 @@ use crate::{
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
-    widgets::BulletPoint,
 };
 
 pub const API_BASE: &str = "https://txgraph.info/api";
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct AppStore {
     layout: Layout,
@@ -30,25 +29,12 @@ pub struct AppStore {
     transform: Transform,
     annotations: Annotations,
     theme: Theme,
-    about_open: bool,
+    about: About,
 }
 
 impl AppStore {
     pub fn export(&self) -> String {
         Project::new(&self.graph, &self.annotations).export()
-    }
-}
-
-impl Default for AppStore {
-    fn default() -> Self {
-        AppStore {
-            layout: Default::default(),
-            graph: Default::default(),
-            transform: Default::default(),
-            annotations: Default::default(),
-            theme: Default::default(),
-            about_open: true,
-        }
     }
 }
 
@@ -204,7 +190,7 @@ impl App {
                 if let Some(pos) = self.store.graph.get_tx_pos(txid) {
                     if let Some(rect) = self.about_rect {
                         if rect.contains(self.store.transform.pos_to_screen(pos)) {
-                            self.store.about_open = false;
+                            self.store.about.close();
                         }
                     }
                 }
@@ -244,12 +230,7 @@ impl eframe::App for App {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui
-                    .selectable_label(self.store.about_open, "About")
-                    .clicked()
-                {
-                    self.store.about_open = !self.store.about_open;
-                }
+                self.store.about.show_toggle(ui);
 
                 ui.separator();
 
@@ -432,41 +413,7 @@ impl eframe::App for App {
             );
         });
 
-        let response = egui::Window::new("txgraph.info")
-            .open(&mut self.store.about_open)
-            .show(ctx, |ui| {
-                ui.label("Visualizing Bitcoin's transaction graph.");
-
-                if ui.button("Load Example Transaction").clicked() {
-                    load_tx(Txid::random_interesting(), None);
-                }
-
-                egui::CollapsingHeader::new("Instructions")
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let steps = [
-                            "Load a custom transaction or pick one from the Hall of Fame via the 'Tx' menu.",
-                            "Click on inputs / outputs to expand to the next transaction.",
-                            "Drag/pinch screen to pan/zoom.",
-                            "Drag transactions to adjust layout.",
-                            "Right-click transactions or inputs/outputs.",
-                        ];
-
-                        for step in steps {
-                            ui.add(BulletPoint::new(step));
-                        }
-                    });
-
-                ui.add_space(3.0);
-
-                ui.horizontal(|ui| {
-                    ui.hyperlink_to("GitHub", "https://github.com/themoritz/txgraph");
-                    ui.label("⸱");
-                    ui.hyperlink_to("Contact", "mailto:hello@txgraph.info");
-                });
-            });
-
-        self.about_rect = response.map(|r| r.response.rect);
+        self.about_rect = self.store.about.show_window(ctx, load_tx);
 
         Notifications::show(ctx);
     }
