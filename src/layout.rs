@@ -57,7 +57,10 @@ impl ForceParams {
             ui.end_row();
 
             ui.label("Tx repulsion radius:");
-            ui.add(egui::Slider::new(&mut self.tx_repulsion_radius, 50.0..=500.0));
+            ui.add(egui::Slider::new(
+                &mut self.tx_repulsion_radius,
+                50.0..=500.0,
+            ));
             ui.end_row();
 
             ui.label("Speed:");

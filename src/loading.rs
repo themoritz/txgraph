@@ -11,12 +11,14 @@ use crate::bitcoin::Txid;
 #[derive(Clone)]
 struct State {
     txids: Arc<Mutex<HashSet<Txid>>>,
+    other: bool,
 }
 
 impl State {
     fn new() -> Self {
         Self {
             txids: Arc::new(Mutex::new(HashSet::new())),
+            other: false,
         }
     }
 
@@ -37,7 +39,7 @@ impl State {
     }
 
     fn is_loading(&self) -> bool {
-        !self.txids.lock().is_empty()
+        !self.txids.lock().is_empty() || self.other
     }
 
     fn is_txid_loading(&self, txid: &Txid) -> bool {
@@ -48,9 +50,9 @@ impl State {
 pub struct Loading {}
 
 impl Loading {
-    fn modify(ctx: &Context, f: impl FnOnce(&State)) {
-        let state = State::load(ctx);
-        f(&state);
+    fn modify(ctx: &Context, f: impl FnOnce(&mut State)) {
+        let mut state = State::load(ctx);
+        f(&mut state);
         state.store(ctx);
     }
 
@@ -60,6 +62,14 @@ impl Loading {
 
     pub fn loading_txid_done(ctx: &Context, txid: Txid) {
         Self::modify(ctx, |store| store.loading_txid_done(txid));
+    }
+
+    pub fn start_loading(ctx: &Context) {
+        Self::modify(ctx, |store| store.other = true);
+    }
+
+    pub fn loading_done(ctx: &Context) {
+        Self::modify(ctx, |store| store.other = false);
     }
 
     pub fn spinner(ui: &mut Ui) {

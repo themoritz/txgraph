@@ -10,8 +10,7 @@ pub struct CustomTx {
 
 impl CustomTx {
     pub fn ui(&mut self, ui: &mut egui::Ui, load_tx: impl Fn(Txid, Option<Pos2>)) {
-        let glyph_width =
-            ui.fonts(|f| f.glyph_width(&TextStyle::Body.resolve(ui.style()), '0'));
+        let glyph_width = ui.fonts(|f| f.glyph_width(&TextStyle::Body.resolve(ui.style()), '0'));
         ui.allocate_space(Vec2::new(glyph_width * 63.5, 0.0));
 
         ui.add(

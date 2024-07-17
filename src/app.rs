@@ -5,6 +5,7 @@ use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdi
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
+    client::Client,
     components::{about::About, custom_tx::CustomTx},
     export::Project,
     flight::Flight,
@@ -132,58 +133,34 @@ impl App {
                     return;
                 }
 
-                let request = ehttp::Request::get(format!("{API_BASE}/tx/{txid}"));
                 Loading::start_loading_txid(ctx, txid);
 
-                let sender = self.update_sender.clone();
                 let center = self.store.transform.pos_from_screen(
                     (self.ui_size / 2.0 + platform::get_random_vec2(50.0)).to_pos2(),
                 );
 
-                let ctx = ctx.clone();
+                let sender = self.update_sender.clone();
+                let ctx2 = ctx.clone();
 
-                ehttp::fetch(request, move |response| {
-                    Loading::loading_txid_done(&ctx, txid);
-                    let error = |e: String| {
-                        Notifications::error(
-                            &ctx,
-                            "Failed fetching transaction.".to_string(),
-                            Some(e),
-                        )
-                    };
-                    match response {
-                        Ok(response) => {
-                            if response.status == 200 {
-                                if let Some(text) = response.text() {
-                                    match serde_json::from_str(text) {
-                                        Ok(tx) => {
-                                            sender
-                                                .send(Update::AddTx {
-                                                    txid,
-                                                    tx,
-                                                    pos: pos.unwrap_or(center),
-                                                })
-                                                .unwrap();
-                                            if pos.is_none() {
-                                                sender.send(Update::SelectTx { txid }).unwrap();
-                                            }
-                                        }
-                                        Err(err) => {
-                                            error(err.to_string());
-                                        }
-                                    }
-                                } else {
-                                    error("No text body response".to_string());
-                                }
-                            } else {
-                                error(response.text().map_or("".to_string(), |t| t.to_owned()));
-                            }
+                Client::fetch_json(
+                    &format!("tx/{txid}"),
+                    ctx,
+                    move || {
+                        Loading::loading_txid_done(&ctx2, txid);
+                    },
+                    move |tx| {
+                        sender
+                            .send(Update::AddTx {
+                                txid,
+                                tx,
+                                pos: pos.unwrap_or(center),
+                            })
+                            .unwrap();
+                        if pos.is_none() {
+                            sender.send(Update::SelectTx { txid }).unwrap();
                         }
-                        Err(err) => {
-                            error(err);
-                        }
-                    }
-                });
+                    },
+                );
             }
             Update::SelectTx { txid } => {
                 self.store.graph.select(txid);
@@ -269,11 +246,9 @@ impl eframe::App for App {
 
                                     self.import_text = String::new();
                                 }
-                                Err(e) => Notifications::error(
-                                    ctx,
-                                    "Could not import Json".to_string(),
-                                    Some(e),
-                                ),
+                                Err(e) => {
+                                    Notifications::error(ctx, "Could not import Json", Some(&e))
+                                }
                             }
                             ui.close_menu();
                         }
