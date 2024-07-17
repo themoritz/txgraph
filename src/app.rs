@@ -19,8 +19,6 @@ use crate::{
     transform::Transform,
 };
 
-pub const API_BASE: &str = "https://txgraph.info/api";
-
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -133,14 +131,14 @@ impl App {
                     return;
                 }
 
-                Loading::start_loading_txid(ctx, txid);
-
                 let center = self.store.transform.pos_from_screen(
                     (self.ui_size / 2.0 + platform::get_random_vec2(50.0)).to_pos2(),
                 );
 
                 let sender = self.update_sender.clone();
                 let ctx2 = ctx.clone();
+
+                Loading::start_loading_txid(ctx, txid);
 
                 Client::fetch_json(
                     &format!("tx/{txid}"),

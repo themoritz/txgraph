@@ -1,7 +1,9 @@
 use egui::{Context, Id};
 use serde::Deserialize;
 
-use crate::{app::API_BASE, loading::Loading, notifications::Notifications};
+use crate::{loading::Loading, notifications::Notifications};
+
+pub const API_BASE: &str = "https://txgraph.info/api";
 
 #[derive(Clone)]
 pub struct Client {
