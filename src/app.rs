@@ -260,6 +260,9 @@ impl eframe::App for App {
                         }
                     });
 
+                    if ui.button("Save as new project").clicked() {
+                    }
+
                     ui.separator();
 
                     self.account.show_ui(ui);

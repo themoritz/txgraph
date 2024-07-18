@@ -15,6 +15,10 @@ pub struct Project {
 
 impl Project {
     pub fn export(&self) -> String {
+        serde_json::to_string(&self.export_json()).unwrap()
+    }
+
+    pub fn export_json(&self) -> serde_json::Value {
         Project0 {
             version: 0,
             annotations: self.annotations.export(),
@@ -24,11 +28,16 @@ impl Project {
                 .map(Transaction::to_transaction0)
                 .collect(),
         }
-        .export()
+        .export_json()
     }
 
     pub fn import(string: &str) -> Result<Self, String> {
-        let project0 = Project0::import(string)?;
+        let json = serde_json::from_str(string).map_err(|e| e.to_string())?;
+        Self::import_json(json)
+    }
+
+    pub fn import_json(json: serde_json::Value) -> Result<Self, String> {
+        let project0 = Project0::import_json(json)?;
         Ok(Self {
             annotations: annotations::Annotations::import(&project0.annotations)?,
             transactions: project0
@@ -84,12 +93,12 @@ struct Project0 {
 }
 
 impl Project0 {
-    fn export(&self) -> String {
-        serde_json::to_string(self).unwrap()
+    fn export_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
     }
 
-    fn import(string: &str) -> Result<Self, String> {
-        let slf: Self = serde_json::from_str(string).map_err(|e| e.to_string())?;
+    fn import_json(json: serde_json::Value) -> Result<Self, String> {
+        let slf: Self = serde_json::from_value(json).map_err(|e| e.to_string())?;
         if slf.version == 0 {
             Ok(slf)
         } else {

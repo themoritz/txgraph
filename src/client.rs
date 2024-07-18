@@ -18,6 +18,34 @@ pub struct UserData {
     pub session: Session,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Session {
+    id: String,
+}
+
+// ----------------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct ProjectEntry {
+    pub id: i32,
+    pub name: String,
+    pub is_public: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct Project {
+    pub id: i32,
+    pub user_id: i32,
+    name: String,
+    /// We store the data as JSON, but we don't need to deserialize it here.
+    data: serde_json::Value,
+    is_public: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+// ----------------------------------------------------------------------------------
+
 impl Client {
     pub fn new() -> Self {
         Self { user_data: None }
@@ -129,7 +157,7 @@ impl Client {
         );
     }
 
-    pub fn logout(ctx: &Context) {
+    pub fn logout(ctx: &Context, on_done: impl 'static + Send + FnOnce()) {
         let ctx2 = ctx.clone();
         Self::post_json::<(), ()>(
             ctx,
@@ -139,11 +167,59 @@ impl Client {
                 Self::modify(&ctx2, |slf| {
                     slf.user_data = None;
                 });
+                on_done();
             },
             |_| {},
             || {},
         );
     }
+
+    // ----------------------------------------------------------------------------------
+
+    pub fn list_projects(
+        ctx: &Context,
+        on_success: impl 'static + Send + FnOnce(Vec<ProjectEntry>),
+    ) {
+        Self::get_json(
+            ctx,
+            "projects",
+            || {},
+            on_success,
+            || {},
+        );
+    }
+
+    pub fn load_project(
+        ctx: &Context,
+        project_id: i32,
+        on_success: impl 'static + Send + FnOnce(Project),
+    ) {
+        Self::get_json(
+            ctx,
+            format!("project/{project_id}").as_str(),
+            || {},
+            on_success,
+            || {},
+        );
+    }
+
+    pub fn set_project_public(
+        ctx: &Context,
+        project_id: i32,
+        is_public: bool,
+        on_done: impl 'static + Send + FnOnce(),
+    ) {
+        Self::post_json::<bool, ()>(
+            ctx,
+            format!("project/{project_id}/public").as_str(),
+            is_public,
+            on_done,
+            |_| {},
+            || {},
+        );
+    }
+
+    // ----------------------------------------------------------------------------------
 
     pub fn post_json<I: Serialize, O: for<'de> Deserialize<'de>>(
         ctx: &Context,
@@ -155,7 +231,7 @@ impl Client {
     ) {
         Self::fetch_json(
             ctx,
-            Request::json(format!("{API_BASE}/{path}").as_str(), &body).unwrap(),
+            Request::json(format!("{API_BASE}/{path}"), &body).unwrap(),
             on_done,
             on_success,
             on_error,
@@ -171,7 +247,7 @@ impl Client {
     ) {
         Self::fetch_json(
             ctx,
-            Request::get(format!("{API_BASE}/{path}").as_str()),
+            Request::get(format!("{API_BASE}/{path}")),
             on_done,
             on_success,
             on_error,
@@ -221,9 +297,4 @@ impl Client {
             }
         });
     }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Session {
-    id: String,
 }
