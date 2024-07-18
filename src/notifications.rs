@@ -50,13 +50,13 @@ impl State {
 pub struct Notifications {}
 
 impl Notifications {
-    pub fn notify(ctx: &Context, kind: Kind, message: &str, detail: Option<&str>) {
+    pub fn notify(ctx: &Context, kind: Kind, message: impl ToString, detail: Option<impl ToString>) {
         let mut state = State::load(ctx);
         state.notify(kind, message.to_string(), detail.map(|s| s.to_string()));
         state.store(ctx);
     }
 
-    pub fn error(ctx: &Context, message: &str, detail: Option<&str>) {
+    pub fn error(ctx: &Context, message: impl ToString, detail: Option<impl ToString>) {
         Self::notify(ctx, Kind::Error, message, detail);
     }
 

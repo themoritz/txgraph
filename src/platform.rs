@@ -47,13 +47,13 @@ pub mod inner {
                         Notifications::error(
                             &ctx,
                             "Can't navigate to transaction.",
-                            Some(&err.to_string()),
+                            Some(err),
                         );
                     }
                 }
             } else if url == "/" {
             } else {
-                Notifications::error(&ctx, "Unknown route.", Some(&url));
+                Notifications::error(&ctx, "Unknown route.", Some(url));
             }
         });
 

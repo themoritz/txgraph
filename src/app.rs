@@ -120,7 +120,7 @@ impl App {
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
-            account: Account::new(),
+            account: Account::default(),
         }
     }
 
@@ -145,9 +145,9 @@ impl App {
 
                 Loading::start_loading_txid(ctx, txid);
 
-                Client::fetch_json(
-                    &format!("tx/{txid}"),
+                Client::get_json(
                     ctx,
+                    &format!("tx/{txid}"),
                     move || {
                         Loading::loading_txid_done(&ctx2, txid);
                     },
@@ -163,6 +163,7 @@ impl App {
                             sender.send(Update::SelectTx { txid }).unwrap();
                         }
                     },
+                    || {},
                 );
             }
             Update::SelectTx { txid } => {
@@ -250,7 +251,7 @@ impl eframe::App for App {
                                     self.import_text = String::new();
                                 }
                                 Err(e) => {
-                                    Notifications::error(ctx, "Could not import Json", Some(&e))
+                                    Notifications::error(ctx, "Could not import Json", Some(e))
                                 }
                             }
                             ui.close_menu();
