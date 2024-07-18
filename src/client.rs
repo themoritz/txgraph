@@ -42,6 +42,49 @@ impl Client {
         Self::load(ctx).user_data
     }
 
+    pub fn signup(
+        ctx: &Context,
+        email: &str,
+        password: &str,
+        on_done: impl 'static + Send + Clone + FnOnce(Option<Session>),
+    ) {
+        let body = serde_json::json!({
+            "email": email,
+            "password": password,
+        });
+
+        #[derive(Deserialize)]
+        struct Response {
+            user_id: usize,
+            session_id: String,
+        }
+
+        let ctx2 = ctx.clone();
+        let email = email.to_string();
+        let on_done2 = on_done.clone();
+
+        Self::post_json(
+            ctx,
+            "user/create",
+            body,
+            || {},
+            move |response: Response| {
+                let session = Session {
+                    id: response.session_id,
+                };
+                Self::modify(&ctx2, |slf| {
+                    slf.user_data = Some(UserData {
+                        email,
+                        id: response.user_id,
+                        session: session.clone(),
+                    });
+                });
+                on_done(Some(session))
+            },
+            move || on_done2(None),
+        );
+    }
+
     /// Handles errors and notifications.
     pub fn login(
         ctx: &Context,

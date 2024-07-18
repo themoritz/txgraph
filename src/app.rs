@@ -20,8 +20,6 @@ use crate::{
     transform::Transform,
 };
 
-pub const API_BASE: &str = "http://localhost:1337/api";
-
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -216,6 +214,10 @@ impl eframe::App for App {
                 ui.separator();
 
                 ui.menu_button("Project", |ui| {
+                    ui.allocate_space(Vec2::new(350., 0.));
+
+                    ui.label(RichText::new("Current project:").strong());
+
                     if ui.button("Export to Clipboard").clicked() {
                         ui.output_mut(|o| o.copied_text = self.store.export());
                         ui.close_menu();

@@ -1,5 +1,7 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 
+use egui::{Grid, RichText};
+
 use crate::client::Client;
 
 pub struct Account {
@@ -40,24 +42,46 @@ impl Account {
         }
 
         if let Some(user) = Client::user_data(&ctx) {
-            ui.label(format!("Logged in as: {}", user.email));
-            if ui.button("Log out").clicked() {
-                Client::logout(&ctx);
-            }
+            ui.horizontal(|ui| {
+                ui.label("Logged in as:");
+                ui.label(RichText::new(user.email).underline().strong());
+                if ui.button("Log out").clicked() {
+                    Client::logout(&ctx);
+                }
+            });
         } else {
-            ui.label("Email");
-            ui.text_edit_singleline(&mut self.input_email);
-            ui.label("Password");
-            ui.text_edit_singleline(&mut self.input_password);
+            ui.label(RichText::new("Log in or sign up to manage your projects:").strong());
 
-            if ui.button("Log in").clicked() {
-                let sender = self.sender.clone();
-                Client::login(&ctx, &self.input_email, &self.input_password, move |res| {
-                    if res.is_some() {
-                        sender.send(Msg::Clear).unwrap();
+            Grid::new("Login").num_columns(2).show(ui, |ui| {
+                ui.label("Email");
+                ui.text_edit_singleline(&mut self.input_email);
+                ui.end_row();
+
+                ui.label("Password");
+                ui.text_edit_singleline(&mut self.input_password);
+                ui.end_row();
+
+                ui.label(""); // empty cell
+                ui.horizontal(|ui| {
+                    if ui.button("Log in").clicked() {
+                        let sender = self.sender.clone();
+                        Client::login(&ctx, &self.input_email, &self.input_password, move |res| {
+                            if res.is_some() {
+                                sender.send(Msg::Clear).unwrap();
+                            }
+                        });
+                    }
+                    if ui.button("Sign up").clicked() {
+                        let sender = self.sender.clone();
+                        Client::signup(&ctx, &self.input_email, &self.input_password, move |res| {
+                            if res.is_some() {
+                                sender.send(Msg::Clear).unwrap();
+                            }
+                        });
                     }
                 });
-            }
+                ui.end_row();
+            });
         }
     }
 }
