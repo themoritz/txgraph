@@ -2,7 +2,7 @@ use egui::{Context, Id};
 use ehttp::Request;
 use serde::{Deserialize, Serialize};
 
-use crate::{loading::Loading, notifications::Notifications};
+use crate::{export, loading::Loading, notifications::Notifications};
 
 pub const API_BASE: &str = "http://localhost:1337/api";
 
@@ -213,6 +213,38 @@ impl Client {
             ctx,
             format!("project/{project_id}/public").as_str(),
             is_public,
+            on_done,
+            |_| {},
+            || {},
+        );
+    }
+
+    pub fn set_project_data(
+        ctx: &Context,
+        project_id: i32,
+        project: export::Project,
+        on_done: impl 'static + Send + FnOnce(),
+    ) {
+        Self::post_json::<serde_json::Value, ()>(
+            ctx,
+            format!("project/{project_id}/data").as_str(),
+            project.export_json(),
+            on_done,
+            |_| {},
+            || {},
+        );
+    }
+
+    pub fn set_project_name(
+        ctx: &Context,
+        project_id: i32,
+        name: &str,
+        on_done: impl 'static + Send + FnOnce(),
+    ) {
+        Self::post_json::<String, ()>(
+            ctx,
+            format!("project/{project_id}/name").as_str(),
+            name.to_string(),
             on_done,
             |_| {},
             || {},
