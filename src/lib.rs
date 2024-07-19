@@ -1,6 +1,5 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
-mod account;
 mod annotations;
 mod app;
 mod bezier;
@@ -15,6 +14,7 @@ mod layout;
 mod loading;
 mod notifications;
 mod platform;
+mod projects;
 mod style;
 mod transform;
 mod widgets;

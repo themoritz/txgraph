@@ -1,9 +1,8 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, Vec2};
+use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
-    account::Account,
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
     client::Client,
@@ -16,6 +15,7 @@ use crate::{
     loading::Loading,
     notifications::Notifications,
     platform::inner as platform,
+    projects::ProjectsWindow,
     style::{Theme, ThemeSwitch},
     transform::Transform,
 };
@@ -30,6 +30,7 @@ pub struct AppStore {
     annotations: Annotations,
     theme: Theme,
     about: About,
+    projects: ProjectsWindow,
 }
 
 impl AppStore {
@@ -54,6 +55,10 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
+    OpenProject {
+        project: Project,
+    },
+    ExportProject,
 }
 
 pub struct App {
@@ -62,11 +67,9 @@ pub struct App {
     update_receiver: Receiver<Update>,
     flight: Flight,
     ui_size: Vec2,
-    import_text: String,
     custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
-    account: Account,
 }
 
 impl App {
@@ -114,11 +117,9 @@ impl App {
             update_receiver,
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
-            import_text: String::new(),
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
-            account: Account::default(),
         }
     }
 
@@ -180,6 +181,36 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
             }
+            Update::OpenProject { project } => {
+                self.store.annotations = project.annotations;
+
+                self.store.graph = Graph::default();
+                for tx in &project.transactions {
+                    self.update_sender
+                        .send(Update::LoadOrSelectTx {
+                            txid: tx.txid,
+                            pos: Some(tx.position),
+                        })
+                        .unwrap();
+                }
+
+                let num_txs = project.transactions.len() as f32;
+                let graph_center = (project
+                    .transactions
+                    .iter()
+                    .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
+                    / num_txs)
+                    .to_pos2();
+                let screen_center = self
+                    .store
+                    .transform
+                    .pos_from_screen((self.ui_size / 2.0).to_pos2());
+
+                self.store.transform.pan_to(graph_center, screen_center);
+            }
+            Update::ExportProject => {
+                ctx.output_mut(|o| o.copied_text = self.store.export());
+            }
         }
     }
 }
@@ -210,63 +241,9 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.store.about.show_toggle(ui);
+                self.store.projects.show_toggle(ui);
 
                 ui.separator();
-
-                ui.menu_button("Project", |ui| {
-                    ui.allocate_space(Vec2::new(350., 0.));
-
-                    ui.label(RichText::new("Current project:").strong());
-
-                    if ui.button("Export to Clipboard").clicked() {
-                        ui.output_mut(|o| o.copied_text = self.store.export());
-                        ui.close_menu();
-                    }
-                    ui.menu_button("Import", |ui| {
-                        ui.add(
-                            TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
-                        );
-                        if ui.button("Go").clicked() {
-                            match Project::import(&self.import_text) {
-                                Ok(project) => {
-                                    self.store.annotations = project.annotations;
-
-                                    self.store.graph = Graph::default();
-                                    for tx in &project.transactions {
-                                        load_tx(tx.txid, Some(tx.position));
-                                    }
-
-                                    let num_txs = project.transactions.len() as f32;
-                                    let graph_center = (project
-                                        .transactions
-                                        .iter()
-                                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
-                                        / num_txs)
-                                        .to_pos2();
-                                    let screen_center = self
-                                        .store
-                                        .transform
-                                        .pos_from_screen((self.ui_size / 2.0).to_pos2());
-
-                                    self.store.transform.pan_to(graph_center, screen_center);
-
-                                    self.import_text = String::new();
-                                }
-                                Err(e) => {
-                                    Notifications::error(ctx, "Could not import Json", Some(e))
-                                }
-                            }
-                            ui.close_menu();
-                        }
-                    });
-
-                    if ui.button("Save as new project").clicked() {
-                    }
-
-                    ui.separator();
-
-                    self.account.show_ui(ui);
-                });
 
                 ui.menu_button("Tx", |ui| {
                     ui.menu_button("Load Custom Txid", |ui| {
@@ -401,6 +378,16 @@ impl eframe::App for App {
             );
         });
 
+        let sender2 = sender.clone();
+        self.store.projects.show_window(
+            ctx,
+            |project| {
+                sender.send(Update::OpenProject { project }).unwrap();
+            },
+            || {
+                sender2.send(Update::ExportProject).unwrap();
+            },
+        );
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 
         Notifications::show(ctx);
