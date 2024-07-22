@@ -1,4 +1,4 @@
-use egui::{Align2, Area, Color32, Context, Frame, Id, Order, RichText, Sense, Separator, Ui, Vec2};
+use egui::{Align2, Area, Color32, Context, Frame, Id, Order, RichText, Sense, Ui, Vec2};
 
 pub fn show(ctx: &Context, title: impl Into<RichText>, add_contents: impl FnOnce(&mut Ui)) {
     Area::new(Id::new("Modal"))
@@ -19,10 +19,13 @@ pub fn show(ctx: &Context, title: impl Into<RichText>, add_contents: impl FnOnce
             response
         });
 
-    Area::new(Id::new("Modal2"))
+    let title: RichText = title.into();
+    let id = Id::new("Modal").with(title.text());
+
+    Area::new(Id::new(id))
         .anchor(Align2::CENTER_CENTER, Vec2::new(0.0, -100.0))
         .movable(false)
-        .order(Order::Foreground)
+        .order(Order::Debug) // TODO: this seems like a hack, how do I get the modal to be on top?
         .show(ctx, |ui| {
             Frame::popup(&ctx.style()).show(ui, |ui| {
                 ui.heading(title);

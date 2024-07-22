@@ -24,13 +24,19 @@ pub mod inner {
         fn get_random() -> f64;
     }
 
+    macro_rules! console_log {
+        ($($t:tt)*) => (crate::platform::inner::log(&format_args!($($t)*).to_string()))
+    }
+
+    pub(crate) use console_log;
+
     #[wasm_bindgen]
     pub fn version() {
         let mut hash = env!("GIT_COMMIT_HASH").to_string();
         hash.truncate(7);
         let pkg_version = env!("CARGO_PKG_VERSION");
-        log(&format!("Version: {pkg_version}"));
-        log(&format!("Git: {hash}"));
+        console_log!("Version: {pkg_version}");
+        console_log!("Git: {hash}");
     }
 
     pub fn add_route_listener(sender: Sender<Update>, ctx: egui::Context) {
@@ -96,6 +102,12 @@ pub mod inner {
     pub fn get_viewport_dimensions() -> Option<Vec2> {
         None
     }
+
+    macro_rules! console_log {
+        ($($t:tt)*) => (println!($($t)*))
+    }
+
+    pub(crate) use console_log;
 
     pub fn get_random_vec2(range: f32) -> Vec2 {
         let mut rng = ThreadRng::default();

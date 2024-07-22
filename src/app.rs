@@ -194,13 +194,17 @@ impl App {
                         .unwrap();
                 }
 
-                let num_txs = project.transactions.len() as f32;
-                let graph_center = (project
-                    .transactions
-                    .iter()
-                    .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
-                    / num_txs)
-                    .to_pos2();
+                let num_txs = project.transactions.len();
+                let graph_center = if num_txs > 0 {
+                    (project
+                        .transactions
+                        .iter()
+                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
+                        / (num_txs as f32))
+                        .to_pos2()
+                } else {
+                    Pos2::new(0.0, 0.0)
+                };
                 let screen_center = self
                     .store
                     .transform
@@ -212,6 +216,7 @@ impl App {
                 ctx.output_mut(|o| o.copied_text = self.store.export());
             }
         }
+        ctx.request_repaint();
     }
 }
 

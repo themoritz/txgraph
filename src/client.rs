@@ -180,19 +180,25 @@ impl Client {
         ctx: &Context,
         name: &str,
         data: export::Project,
-        on_done: impl 'static + Send + FnOnce(),
+        on_success: impl 'static + Send + FnOnce(i32),
     ) {
+        #[derive(Deserialize)]
+        struct ProjectId {
+            project_id: i32,
+        }
+
         let payload = serde_json::json!({
             "name": name,
             "data": data.export_json(),
             "is_public": false,
         });
-        Self::post_json::<serde_json::Value, ()>(
+
+        Self::post_json::<serde_json::Value, ProjectId>(
             ctx,
             "project/create",
             payload,
-            on_done,
-            |_| {},
+            || {},
+            |p| on_success(p.project_id),
             || {},
         );
     }
@@ -201,13 +207,7 @@ impl Client {
         ctx: &Context,
         on_success: impl 'static + Send + FnOnce(Vec<ProjectEntry>),
     ) {
-        Self::get_json(
-            ctx,
-            "projects",
-            || {},
-            on_success,
-            || {},
-        );
+        Self::get_json(ctx, "projects", || {}, on_success, || {});
     }
 
     pub fn load_project(
