@@ -37,11 +37,11 @@ pub struct ProjectEntry {
 pub struct Project {
     pub id: i32,
     pub user_id: i32,
-    name: String,
+    pub name: String,
     /// We store the data as JSON, but we don't need to deserialize it here.
-    data: serde_json::Value,
-    is_public: bool,
-    created_at: chrono::DateTime<chrono::Utc>,
+    pub data: serde_json::Value,
+    pub is_public: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 // ----------------------------------------------------------------------------------

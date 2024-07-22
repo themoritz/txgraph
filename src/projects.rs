@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::{Client, ProjectEntry},
-    export::Project,
+    export,
     notifications::Notifications,
 };
 
@@ -44,7 +44,7 @@ impl Default for Projects {
 
 struct LoadedProjects {
     projects: Vec<ProjectEntry>,
-    active_project: Option<i32>,
+    active_project: Option<ActiveProject>,
 }
 
 impl LoadedProjects {
@@ -56,9 +56,15 @@ impl LoadedProjects {
     }
 }
 
+struct ActiveProject {
+    project: export::Project,
+    id: i32,
+}
+
 enum Msg {
     Clear,
     SetProjects(Vec<ProjectEntry>),
+    LoadProject(ActiveProject),
 }
 
 impl ProjectsWindow {
@@ -71,7 +77,7 @@ impl ProjectsWindow {
     pub fn show_window(
         &mut self,
         ctx: &egui::Context,
-        open_project: impl FnOnce(Project),
+        open_project: impl FnOnce(export::Project),
         export_project: impl FnOnce(),
     ) {
         egui::Window::new("Projects")
@@ -86,7 +92,7 @@ impl Projects {
     fn show_ui(
         &mut self,
         ui: &mut egui::Ui,
-        open_project: impl FnOnce(Project),
+        open_project: impl FnOnce(export::Project),
         export_project: impl FnOnce(),
     ) {
         let ctx = ui.ctx().clone();
@@ -100,6 +106,11 @@ impl Projects {
                 }
                 Msg::SetProjects(projects) => {
                     self.projects = Some(LoadedProjects::new(projects));
+                }
+                Msg::LoadProject(active_project) => {
+                    if let Some(projects) = &mut self.projects {
+                        projects.active_project = Some(active_project);
+                    }
                 }
             }
         }
@@ -140,7 +151,7 @@ impl Projects {
                     .body(|mut body| {
                         for project in &loaded_projects.projects {
                             body.row(20.0, |mut row| {
-                                row.set_selected(Some(project.id) == loaded_projects.active_project);
+                                row.set_selected(Some(project.id) == loaded_projects.active_project.as_ref().map(|p| p.id));
 
                                 row.col(|ui| {
                                     ui.add(Label::new(project.name.clone()).selectable(false));
@@ -162,8 +173,21 @@ impl Projects {
                                     }
                                 });
 
+                                let sender = self.sender.clone();
+                                let ctx2 = ctx.clone();
+                                let id = project.id;
                                 if row.response().clicked() {
-                                    loaded_projects.active_project = Some(project.id);
+                                    Client::load_project(&ctx, project.id, move |response| {
+                                        match export::Project::import_json(response.data) {
+                                            Ok(project) => {
+                                                sender.send(Msg::LoadProject(ActiveProject { project, id })).unwrap();
+                                            }
+                                            Err(e) => {
+                                                Notifications::error(&ctx2, "Could not load project", Some(e));
+                                            }
+                                        }
+
+                                    });
                                 }
                             });
                         }
@@ -224,7 +248,7 @@ impl Projects {
             ui.menu_button("Import from JSON", |ui| {
                 ui.add(TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."));
                 if ui.button("Go").clicked() {
-                    match Project::import(&self.import_text) {
+                    match export::Project::import(&self.import_text) {
                         Ok(project) => {
                             open_project(project);
                             self.import_text = String::new();
@@ -236,40 +260,42 @@ impl Projects {
             });
         });
 
-        if let Some(loaded_projects) = &self.projects {
-            if let Some(project_id) = loaded_projects.active_project {
-                let project = loaded_projects.projects.iter().find(|p| p.id == project_id).unwrap();
+        if let Some(user) = Client::user_data(&ctx) {
+            if let Some(loaded_projects) = &self.projects {
+                if let Some(active_project) = &loaded_projects.active_project {
+                    let project = loaded_projects.projects.iter().find(|p| p.id == active_project.id).unwrap();
 
-                ui.horizontal(|ui| {
-                    if ui.button("Save").clicked() {
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
 
-                    }
-                    ui.weak("Last Saved: 2021-09-01 12:34");
-                });
-                ui.horizontal(|ui| {
-                    ui.button("Rename Project");
+                        }
+                        ui.weak("Last Saved: 2021-09-01 12:34");
+                    });
+                    ui.horizontal(|ui| {
+                        ui.button("Rename Project");
 
-                    let mut public = project.is_public;
-                    if ui.checkbox(&mut public, "Public").clicked() {
-                        let sender = self.sender.clone();
-                        let ctx2 = ctx.clone();
-                        Client::set_project_public(
-                            &ctx,
-                            project.id,
-                            public,
-                            move || {
-                                Client::list_projects(&ctx2, move |projects| {
-                                    sender.send(Msg::SetProjects(projects)).unwrap();
-                                });
-                            },
-                        );
-                    }
+                        let mut public = project.is_public;
+                        if ui.checkbox(&mut public, "Public").clicked() {
+                            let sender = self.sender.clone();
+                            let ctx2 = ctx.clone();
+                            Client::set_project_public(
+                                &ctx,
+                                project.id,
+                                public,
+                                move || {
+                                    Client::list_projects(&ctx2, move |projects| {
+                                        sender.send(Msg::SetProjects(projects)).unwrap();
+                                    });
+                                },
+                            );
+                        }
 
-                    ui.button("Delete Project");
-                });
+                        ui.button("Delete Project");
+                    });
+                } else {
+                    if ui.button("Save as New Project").clicked() {}
+                }
             }
-        } else if let Some(user) = Client::user_data(&ctx) {
-            if ui.button("Save as New Project").clicked() {}
         } else {
             ui.weak("Log in or sign up to save your project");
         }
