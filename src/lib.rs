@@ -12,6 +12,7 @@ mod framerate;
 mod graph;
 mod layout;
 mod loading;
+mod modal;
 mod notifications;
 mod platform;
 mod projects;

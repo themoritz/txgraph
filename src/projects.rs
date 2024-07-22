@@ -6,9 +6,7 @@ use egui_extras::{Column, TableBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::{Client, ProjectEntry},
-    export,
-    notifications::Notifications,
+    client::{Client, ProjectEntry}, export, modal, notifications::Notifications
 };
 
 #[derive(Default, Deserialize, Serialize)]
@@ -25,6 +23,7 @@ struct Projects {
     projects: Option<LoadedProjects>,
     sender: Sender<Msg>,
     receiver: Receiver<Msg>,
+    open: bool,
 }
 
 impl Default for Projects {
@@ -38,6 +37,7 @@ impl Default for Projects {
             projects: None,
             sender,
             receiver,
+            open: true,
         }
     }
 }
@@ -113,6 +113,15 @@ impl Projects {
                     }
                 }
             }
+        }
+
+        if self.open {
+            modal::show(&ctx, |ui| {
+                ui.label("Hello, World!");
+                if ui.button("Close").clicked() {
+                    self.open = false;
+                }
+            });
         }
 
         if let Some(user) = Client::user_data(&ctx) {
