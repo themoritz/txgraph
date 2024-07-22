@@ -20,10 +20,10 @@ struct Projects {
     import_text: String,
     input_email: String,
     input_password: String,
+    input_rename: Option<String>,
     projects: Option<LoadedProjects>,
     sender: Sender<Msg>,
     receiver: Receiver<Msg>,
-    open: bool,
 }
 
 impl Default for Projects {
@@ -34,10 +34,10 @@ impl Default for Projects {
             import_text: String::new(),
             input_email: String::new(),
             input_password: String::new(),
+            input_rename: None,
             projects: None,
             sender,
             receiver,
-            open: true,
         }
     }
 }
@@ -65,6 +65,7 @@ enum Msg {
     Clear,
     SetProjects(Vec<ProjectEntry>),
     LoadProject(ActiveProject),
+    CancelRename,
 }
 
 impl ProjectsWindow {
@@ -105,23 +106,24 @@ impl Projects {
                     self.projects = None;
                 }
                 Msg::SetProjects(projects) => {
-                    self.projects = Some(LoadedProjects::new(projects));
+                    match self.projects {
+                        Some(ref mut loaded_projects) => {
+                            loaded_projects.projects = projects;
+                        }
+                        None => {
+                            self.projects = Some(LoadedProjects::new(projects));
+                        }
+                    }
                 }
                 Msg::LoadProject(active_project) => {
                     if let Some(projects) = &mut self.projects {
                         projects.active_project = Some(active_project);
                     }
                 }
-            }
-        }
-
-        if self.open {
-            modal::show(&ctx, |ui| {
-                ui.label("Hello, World!");
-                if ui.button("Close").clicked() {
-                    self.open = false;
+                Msg::CancelRename => {
+                    self.input_rename = None;
                 }
-            });
+            }
         }
 
         if let Some(user) = Client::user_data(&ctx) {
@@ -281,7 +283,34 @@ impl Projects {
                         ui.weak("Last Saved: 2021-09-01 12:34");
                     });
                     ui.horizontal(|ui| {
-                        ui.button("Rename Project");
+                        if ui.button("Rename Project").clicked() {
+                            self.input_rename = Some(project.name.clone());
+                        }
+
+                        if let Some(rename) = &mut self.input_rename {
+                            modal::show(&ctx, "Rename Project", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("New Name:");
+                                    ui.text_edit_singleline(rename);
+                                });
+
+                                ui.horizontal(|ui| {
+                                    if ui.button("Cancel").clicked() {
+                                        self.sender.send(Msg::CancelRename).unwrap();
+                                    }
+                                    if ui.button("Save").clicked() {
+                                        let sender = self.sender.clone();
+                                        let ctx2 = ctx.clone();
+                                        Client::set_project_name(&ctx, project.id, rename, move || {
+                                            sender.send(Msg::CancelRename).unwrap();
+                                            Client::list_projects(&ctx2, move |projects| {
+                                                sender.send(Msg::SetProjects(projects)).unwrap();
+                                            });
+                                        });
+                                    }
+                                });
+                            });
+                        }
 
                         let mut public = project.is_public;
                         if ui.checkbox(&mut public, "Public").clicked() {
