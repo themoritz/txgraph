@@ -176,6 +176,27 @@ impl Client {
 
     // ----------------------------------------------------------------------------------
 
+    pub fn create_project(
+        ctx: &Context,
+        name: &str,
+        data: export::Project,
+        on_done: impl 'static + Send + FnOnce(),
+    ) {
+        let payload = serde_json::json!({
+            "name": name,
+            "data": data.export_json(),
+            "is_public": false,
+        });
+        Self::post_json::<serde_json::Value, ()>(
+            ctx,
+            "project/create",
+            payload,
+            on_done,
+            |_| {},
+            || {},
+        );
+    }
+
     pub fn list_projects(
         ctx: &Context,
         on_success: impl 'static + Send + FnOnce(Vec<ProjectEntry>),
