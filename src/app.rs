@@ -392,6 +392,9 @@ impl eframe::App for App {
             || {
                 sender2.send(Update::ExportProject).unwrap();
             },
+            || {
+                Project::new(&self.store.graph, &self.store.annotations)
+            }
         );
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 

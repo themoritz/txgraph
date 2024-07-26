@@ -24,6 +24,7 @@ struct Projects {
     input_password: String,
     input_rename: Option<String>,
     input_new_project: Option<String>,
+    not_saved_modal: NotSavedModal,
     projects: Option<LoadedProjects>,
     sender: Sender<Msg>,
     receiver: Receiver<Msg>,
@@ -39,6 +40,7 @@ impl Default for Projects {
             input_password: String::new(),
             input_rename: None,
             input_new_project: None,
+            not_saved_modal: NotSavedModal::default(),
             projects: None,
             sender,
             receiver,
@@ -86,11 +88,12 @@ impl ProjectsWindow {
         ctx: &egui::Context,
         open_project: impl Copy + FnOnce(export::Project),
         export_project: impl FnOnce(),
+        save_project: impl Copy + FnOnce() -> export::Project,
     ) {
         egui::Window::new("Projects")
             .open(&mut self.open)
             .show(ctx, |ui| {
-                self.projects.show_ui(ui, open_project, export_project)
+                self.projects.show_ui(ui, open_project, export_project, save_project)
             });
     }
 }
@@ -101,6 +104,7 @@ impl Projects {
         ui: &mut egui::Ui,
         open_project: impl Copy + FnOnce(export::Project),
         export_project: impl FnOnce(),
+        save_project: impl Copy + FnOnce() -> export::Project,
     ) {
         let ctx = ui.ctx().clone();
 
@@ -133,6 +137,21 @@ impl Projects {
                 }
             }
         }
+
+        let is_project_saved: Box<dyn Fn() -> bool> =
+            if let Some(loaded_projects) = &self.projects {
+                if let Some(active_project) = &loaded_projects.active_project {
+                    let act = active_project.clone(); // TODO: Can we avoid this?
+                    Box::new(move || act.project.is_saved(&save_project()))
+                } else {
+                    Box::new(|| save_project().is_empty())
+                }
+            } else {
+                Box::new(|| save_project().is_empty())
+            };
+
+
+        self.not_saved_modal.show(ui);
 
         if let Some(user) = Client::user_data(&ctx) {
             ui.horizontal(|ui| {
@@ -206,25 +225,36 @@ impl Projects {
                                 let ctx2 = ctx.clone();
                                 let id = project.id;
                                 if row.response().clicked() {
-                                    Client::load_project(&ctx, project.id, move |response| {
-                                        match export::Project::import_json(response.data) {
-                                            Ok(project) => {
-                                                sender
-                                                    .send(Msg::LoadProject(ActiveProject {
-                                                        project,
-                                                        id,
-                                                    }))
-                                                    .unwrap();
+                                    let ctx3 = ctx.clone();
+                                    let project_id = project.id;
+                                    let go = move || {
+                                        let sender = sender.clone();
+                                        let ctx2 = ctx2.clone();
+                                        Client::load_project(&ctx3, project_id, move |response| {
+                                            match export::Project::import_json(response.data) {
+                                                Ok(project) => {
+                                                    sender
+                                                        .send(Msg::LoadProject(ActiveProject {
+                                                            project,
+                                                            id,
+                                                        }))
+                                                        .unwrap();
+                                                }
+                                                Err(e) => {
+                                                    Notifications::error(
+                                                        &ctx2,
+                                                        "Could not load project",
+                                                        Some(e),
+                                                    );
+                                                }
                                             }
-                                            Err(e) => {
-                                                Notifications::error(
-                                                    &ctx2,
-                                                    "Could not load project",
-                                                    Some(e),
-                                                );
-                                            }
-                                        }
-                                    });
+                                        });
+                                    };
+                                    if is_project_saved() {
+                                        go();
+                                    } else {
+                                        self.not_saved_modal.open(go);
+                                    }
                                 }
                             });
                         }
@@ -233,7 +263,7 @@ impl Projects {
                 ui.separator();
 
                 if ui.button("New Project").clicked() {
-                    // TODO: Check saved
+                    // TODO: Check current project saved.
                     self.input_new_project = Some(String::new());
                 }
                 if let Some(name) = &mut self.input_new_project {
@@ -317,6 +347,7 @@ impl Projects {
             ui.menu_button("Import from JSON", |ui| {
                 ui.add(TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."));
                 if ui.button("Go").clicked() {
+                    // TODO: Check project saved
                     match export::Project::import(&self.import_text) {
                         Ok(project) => {
                             open_project(project);
@@ -339,8 +370,13 @@ impl Projects {
                         .unwrap();
 
                     ui.horizontal(|ui| {
-                        if ui.button("Save").clicked() {}
-                        ui.weak("Last Saved: 2021-09-01 12:34");
+                        if ui.button("Save").clicked() {
+                            let ctx2 = ctx.clone();
+                            Client::set_project_data(&ctx, active_project.id, save_project(), move || {
+                                Notifications::success(&ctx2, "Project saved");
+                            });
+                        }
+                        ui.weak("Last Saved: 2021-09-01 12:34"); // TODO:
                     });
                     ui.horizontal(|ui| {
                         if ui.button("Rename Project").clicked() {
@@ -391,6 +427,7 @@ impl Projects {
                         }
 
                         ui.button("Delete Project");
+                        // TODO: Check project saved.
                     });
                 } else {
                     if ui.button("Save as New Project").clicked() {}
@@ -398,6 +435,44 @@ impl Projects {
             }
         } else {
             ui.weak("Log in or sign up to save your project");
+        }
+    }
+}
+
+struct NotSavedModal {
+    open: bool,
+    action: Box<dyn Fn()>,
+}
+
+impl Default for NotSavedModal {
+    fn default() -> Self {
+        Self {
+            open: false,
+            action: Box::new(|| {}),
+        }
+    }
+}
+
+impl NotSavedModal {
+    fn open(&mut self, action: impl Fn() + 'static) {
+        self.open = true;
+        self.action = Box::new(action);
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui) {
+        if self.open {
+            modal::show(ui.ctx(), "Project not Saved", |ui| {
+                ui.label("The current project is not saved. Do you want to continue?");
+                ui.horizontal(|ui| {
+                    if ui.button("Continue").clicked() {
+                        (self.action)();
+                        self.open = false;
+                    }
+                    if ui.button("Abort").clicked() {
+                        self.open = false;
+                    }
+                });
+            });
         }
     }
 }

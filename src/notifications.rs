@@ -3,12 +3,14 @@ use egui::{Context, Id, RichText};
 #[derive(Clone)]
 pub enum Kind {
     Error,
+    Success,
 }
 
 impl Kind {
     pub fn as_str(&self) -> &str {
         match self {
             Kind::Error => "✘ Error",
+            Kind::Success => "✔ Success",
         }
     }
 }
@@ -58,6 +60,10 @@ impl Notifications {
 
     pub fn error(ctx: &Context, message: impl ToString, detail: Option<impl ToString>) {
         Self::notify(ctx, Kind::Error, message, detail);
+    }
+
+    pub fn success(ctx: &Context, message: impl ToString) {
+        Self::notify(ctx, Kind::Success, message, None::<String>);
     }
 
     pub fn show(ctx: &Context) {

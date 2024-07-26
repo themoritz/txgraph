@@ -83,6 +83,13 @@ impl Annotations {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.tx_color.is_empty()
+            && self.tx_label.is_empty()
+            && self.coin_color.is_empty()
+            && self.coin_label.is_empty()
+    }
+
     pub fn set_tx_color(&mut self, txid: Txid, color: Color32) {
         self.tx_color
             .insert(txid, [color.r(), color.g(), color.b()]);

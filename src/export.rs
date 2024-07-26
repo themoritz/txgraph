@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use egui::Pos2;
 use serde::{Deserialize, Serialize};
@@ -53,6 +53,19 @@ impl Project {
             annotations: (*annotations).clone(),
             transactions: graph.export(),
         }
+    }
+
+    /// This only checks for annotations and transactions, not the positions
+    /// of the transactions.
+    pub fn is_saved(&self, other: &Project) -> bool {
+        if self.annotations != other.annotations { return false; }
+        let self_set = self.transactions.iter().map(|tx| tx.txid).collect::<HashSet<_>>();
+        let other_set = other.transactions.iter().map(|tx| tx.txid).collect::<HashSet<_>>();
+        self_set == other_set
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.transactions.is_empty() && self.annotations.is_empty()
     }
 }
 
