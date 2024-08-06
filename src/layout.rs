@@ -34,6 +34,7 @@ pub struct ForceParams {
     pub dt: f32,
     pub cooloff: f32,
     pub tx_repulsion_radius: f32,
+    pub active: bool,
 }
 
 impl Default for ForceParams {
@@ -43,6 +44,7 @@ impl Default for ForceParams {
             dt: 0.08,
             cooloff: 0.85,
             tx_repulsion_radius: 150.0,
+            active: true,
         }
     }
 }
@@ -52,6 +54,10 @@ impl ForceParams {
         ui.label(RichText::new("Graph layout params:").strong());
 
         Grid::new("Layout").num_columns(2).show(ui, |ui| {
+            ui.label("Layout Algorithm:");
+            ui.checkbox(&mut self.active, "Active");
+            ui.end_row();
+
             ui.label("Scale:");
             ui.add(egui::Slider::new(&mut self.scale, 5.0..=200.0));
             ui.end_row();

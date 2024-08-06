@@ -715,6 +715,10 @@ impl Graph {
 
         // CALCULATE FORCES AND UPDATE VELOCITY //
 
+        if !layout.force_params.active {
+            return;
+        }
+
         let scale2 = layout.force_params.scale * layout.force_params.scale;
 
         fn kernel(radius: f32, dst: f32) -> f32 {
