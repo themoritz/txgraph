@@ -73,6 +73,7 @@ enum Msg {
     SetProjects(Vec<ProjectEntry>),
     LoadProject(ActiveProject),
     CancelRename,
+    StartNewProject,
     CancelNewProject,
 }
 
@@ -131,6 +132,9 @@ impl Projects {
                 }
                 Msg::CancelRename => {
                     self.input_rename = None;
+                }
+                Msg::StartNewProject => {
+                    self.input_new_project = Some(String::new());
                 }
                 Msg::CancelNewProject => {
                     self.input_new_project = None;
@@ -263,8 +267,15 @@ impl Projects {
                 ui.separator();
 
                 if ui.button("New Project").clicked() {
-                    // TODO: Check current project saved.
-                    self.input_new_project = Some(String::new());
+                    let sender = self.sender.clone();
+                    let go = move || {
+                        sender.send(Msg::StartNewProject).unwrap();
+                    };
+                    if is_project_saved() {
+                        go();
+                    } else {
+                        self.not_saved_modal.open(go);
+                    }
                 }
                 if let Some(name) = &mut self.input_new_project {
                     modal::show(&ctx, "New Project", |ui| {
