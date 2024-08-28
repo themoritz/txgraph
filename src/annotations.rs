@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{Button, Color32, Grid, TextEdit};
+use egui::{ahash::HashSet, Button, Color32, Grid, TextEdit};
 use serde::{Deserialize, Serialize};
 
 use crate::{bitcoin::Txid, export};
@@ -11,6 +11,7 @@ pub struct Annotations {
     tx_label: HashMap<Txid, String>,
     coin_color: HashMap<(Txid, usize), [u8; 3]>,
     coin_label: HashMap<(Txid, usize), String>,
+    coin_pinned: HashSet<(Txid, usize)>,
 }
 
 impl Annotations {
@@ -57,6 +58,7 @@ impl Annotations {
             tx_label: txids_from_strings(&annotations.tx_label)?,
             coin_color: txos_from_strings(&annotations.coin_color)?,
             coin_label: txos_from_strings(&annotations.coin_label)?,
+            coin_pinned: HashSet::default(),
         };
 
         Ok(result)
@@ -105,12 +107,10 @@ impl Annotations {
             .map(|c| Color32::from_rgb(c[0], c[1], c[2]))
     }
 
-    #[allow(dead_code)]
     pub fn set_tx_label(&mut self, txid: Txid, label: String) {
         self.tx_label.insert(txid, label);
     }
 
-    #[allow(dead_code)]
     pub fn set_coin_label(&mut self, coin: (Txid, usize), label: String) {
         self.coin_label.insert(coin, label);
     }
@@ -121,6 +121,10 @@ impl Annotations {
 
     pub fn coin_label(&self, coin: (Txid, usize)) -> Option<String> {
         self.coin_label.get(&coin).map(|l| l.to_owned())
+    }
+
+    pub fn coin_pinned(&self, coin: (Txid, usize)) -> bool {
+        self.coin_pinned.contains(&coin)
     }
 
     pub fn coin_menu(&mut self, coin: (Txid, usize), ui: &mut egui::Ui) {
@@ -158,6 +162,18 @@ impl Annotations {
                     ui.close_menu();
                 }
             });
+            ui.end_row();
+
+            ui.label("Pin:");
+            let mut pinned = self.coin_pinned(coin);
+            if ui.checkbox(&mut pinned, "Always show popup").clicked() {
+                ui.close_menu();
+            }
+            if pinned {
+                self.coin_pinned.insert(coin);
+            } else {
+                self.coin_pinned.remove(&coin);
+            }
             ui.end_row();
         });
 

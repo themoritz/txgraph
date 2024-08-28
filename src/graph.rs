@@ -1,8 +1,7 @@
 use std::{collections::HashMap, fmt::Write, sync::mpsc::Sender};
 
 use egui::{
-    ahash::HashSet, text::LayoutJob, Align, Color32, CursorIcon, FontId, Mesh, Pos2, Rect,
-    RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
+    ahash::HashSet, show_tooltip_at, show_tooltip_for, text::LayoutJob, Align, Area, Color32, CursorIcon, FontId, Id, Mesh, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextFormat, Ui, Vec2
 };
 use serde::{Deserialize, Serialize};
 
@@ -360,19 +359,27 @@ impl Graph {
                 to_width: to_rect.width(),
             };
 
-            let response = flow
-                .draw(ui, color, layout.show_arrows, transform, &coin)
-                .on_hover_ui_at_pointer(|ui| {
-                    if let Some(label) = annotations.coin_label(coin) {
-                        ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
-                    }
-                    let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
-                    let mut job = LayoutJob::default();
-                    sats_layout(&mut job, &Sats(input.value), &style);
-                    newline(&mut job, &style.font_id());
-                    address_layout(&mut job, &input.address, input.address_type, &style);
-                    ui.label(job);
-                });
+            let mut response = flow
+                .draw(ui, color, layout.show_arrows, transform, &coin);
+            let tooltip = |ui: &mut Ui| {
+                if let Some(label) = annotations.coin_label(coin) {
+                    ui.label(RichText::new(format!("[{}]", label)).heading().monospace());
+                }
+                let input = &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos];
+                let mut job = LayoutJob::default();
+                sats_layout(&mut job, &Sats(input.value), &style);
+                newline(&mut job, &style.font_id());
+                address_layout(&mut job, &input.address, input.address_type, &style);
+                ui.label(job);
+            };
+
+            if annotations.coin_pinned(coin) {
+                let center = (from_rect.left_bottom() + from_rect.right_bottom().to_vec2() + to_rect.left_top().to_vec2() + to_rect.right_top().to_vec2()) / 4.0;
+                show_tooltip_at(ui.ctx(), Id::new("coin tooltip").with(coin), Some(center), tooltip);
+            } else {
+                response = response
+                    .on_hover_ui_at_pointer(tooltip);
+            }
             response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
             if response.clicked {
