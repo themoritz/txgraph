@@ -70,6 +70,7 @@ impl Loading {
 
     pub fn loading_done(ctx: &Context) {
         Self::modify(ctx, |store| store.other = false);
+        ctx.request_repaint();
     }
 
     pub fn spinner(ui: &mut Ui) {
