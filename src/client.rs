@@ -3,8 +3,6 @@ use serde::Deserialize;
 
 use crate::{loading::Loading, notifications::Notifications};
 
-pub const API_BASE: &str = "https://txgraph.info/api";
-
 #[derive(Clone)]
 pub struct Client {
     base_url: String,
@@ -19,7 +17,7 @@ impl Client {
 
     fn load(ctx: &Context) -> Self {
         ctx.data(|d| d.get_temp(Id::NULL))
-            .unwrap_or(Self::new(API_BASE))
+            .unwrap_or(Self::new(env!("API_BASE")))
     }
 
     fn store(self, ctx: &Context) {
