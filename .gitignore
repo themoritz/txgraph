@@ -2,3 +2,4 @@
 /dist
 *.pem
 .DS_Store
+client_sign.patch
