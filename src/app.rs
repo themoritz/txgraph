@@ -141,7 +141,7 @@ impl App {
                 Loading::start_loading_txid(ctx, txid);
 
                 Client::fetch_json(
-                    &format!("tx/{txid}"),
+                    move |base_url| ehttp::Request::get(&format!("{}/tx/{}", base_url, txid)),
                     ctx,
                     move || {
                         Loading::loading_txid_done(&ctx2, txid);

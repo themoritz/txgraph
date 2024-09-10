@@ -25,7 +25,7 @@ impl Client {
     }
 
     pub fn fetch_json<T: for<'de> Deserialize<'de>>(
-        path: &str,
+        mk_request: impl FnOnce(&str) -> ehttp::Request,
         ctx: &Context,
         on_done: impl 'static + Send + FnOnce(),
         on_success: impl 'static + Send + FnOnce(T),
@@ -33,7 +33,7 @@ impl Client {
         let slf = Self::load(ctx);
 
         Loading::start_loading(ctx);
-        let request = ehttp::Request::get(format!("{}/{path}", slf.base_url));
+        let request = mk_request(&slf.base_url);
 
         let ctx = ctx.clone();
         ehttp::fetch(request, move |response| {

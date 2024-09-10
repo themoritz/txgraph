@@ -22,6 +22,7 @@ hex = "0.4.3"
 chrono = "0.4.24"
 reunion = "0.1.14"
 dark-light = "1.1.1"
+base64 = "0.13.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

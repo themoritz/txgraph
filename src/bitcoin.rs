@@ -137,6 +137,12 @@ impl Serialize for Txid {
     }
 }
 
+impl AsRef<[u8]> for Txid {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
     pub timestamp: i64,
