@@ -2825,6 +2825,7 @@ checksum = "0609f771ad9c6155384897e1df4d948e692667cc0588548b68eb44d052b27633"
 name = "txgraph"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "console_error_panic_hook",
  "dark-light",

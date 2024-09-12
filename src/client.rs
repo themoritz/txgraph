@@ -2,9 +2,22 @@ use egui::{Context, Id};
 use ehttp::Request;
 use serde::{Deserialize, Serialize};
 
-use crate::{export, loading::Loading, notifications::Notifications};
+use crate::{
+    bitcoin::{Transaction, Txid},
+    export,
+    loading::Loading,
+    notifications::Notifications,
+};
 
-pub const API_BASE: &str = "http://localhost:1337/api";
+pub const API_BASE: &str = env!("API_BASE");
+
+fn get(path: impl ToString) -> Request {
+    Request::get(format!("{API_BASE}/{}", path.to_string()))
+}
+
+fn json(path: impl ToString, json: impl Serialize) -> Request {
+    Request::json(format!("{API_BASE}/{}", path.to_string()), &json).unwrap()
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Client {
@@ -52,8 +65,7 @@ impl Client {
     }
 
     fn load(ctx: &Context) -> Self {
-        ctx.data_mut(|d| d.get_persisted(Id::NULL))
-            .unwrap_or(Self::new())
+        ctx.data(|d| d.get_temp(Id::NULL)).unwrap_or(Self::new())
     }
 
     fn store(self, ctx: &Context) {
@@ -91,10 +103,9 @@ impl Client {
         let email = email.to_string();
         let on_done2 = on_done.clone();
 
-        Self::post_json(
+        Self::fetch_json(
             ctx,
-            "user/create",
-            body,
+            json("user/create", body),
             || {},
             move |response: Response| {
                 let session = Session {
@@ -135,10 +146,9 @@ impl Client {
         let email = email.to_string();
         let on_done2 = on_done.clone();
 
-        Self::post_json(
+        Self::fetch_json(
             ctx,
-            "user/login",
-            body,
+            json("user/login", body),
             || {},
             move |response: Response| {
                 let session = Session {
@@ -159,10 +169,9 @@ impl Client {
 
     pub fn logout(ctx: &Context, on_done: impl 'static + Send + FnOnce()) {
         let ctx2 = ctx.clone();
-        Self::post_json::<(), ()>(
+        Self::fetch_json::<()>(
             ctx,
-            "user/logout",
-            (),
+            json("user/logout", ()),
             move || {
                 Self::modify(&ctx2, |slf| {
                     slf.user_data = None;
@@ -193,10 +202,9 @@ impl Client {
             "is_public": false,
         });
 
-        Self::post_json::<serde_json::Value, ProjectId>(
+        Self::fetch_json::<ProjectId>(
             ctx,
-            "project/create",
-            payload,
+            json("project/create", payload),
             || {},
             |p| on_success(p.project_id),
             || {},
@@ -215,9 +223,9 @@ impl Client {
         project_id: i32,
         on_success: impl 'static + Send + FnOnce(Project),
     ) {
-        Self::get_json(
+        Self::fetch_json(
             ctx,
-            format!("project/{project_id}").as_str(),
+            get(format!("project/{project_id}")),
             || {},
             on_success,
             || {},
@@ -230,10 +238,9 @@ impl Client {
         is_public: bool,
         on_done: impl 'static + Send + FnOnce(),
     ) {
-        Self::post_json::<bool, ()>(
+        Self::fetch_json::<()>(
             ctx,
-            format!("project/{project_id}/public").as_str(),
-            is_public,
+            json(format!("project/{project_id}/public"), is_public),
             on_done,
             |_| {},
             || {},
@@ -246,10 +253,9 @@ impl Client {
         project: export::Project,
         on_done: impl 'static + Send + FnOnce(),
     ) {
-        Self::post_json::<serde_json::Value, ()>(
+        Self::fetch_json::<()>(
             ctx,
-            format!("project/{project_id}/data").as_str(),
-            project.export_json(),
+            json(format!("project/{project_id}/data"), project.export_json()),
             on_done,
             |_| {},
             || {},
@@ -262,10 +268,9 @@ impl Client {
         name: &str,
         on_done: impl 'static + Send + FnOnce(),
     ) {
-        Self::post_json::<String, ()>(
+        Self::fetch_json::<()>(
             ctx,
-            format!("project/{project_id}/name").as_str(),
-            name.to_string(),
+            json(format!("project/{project_id}/name"), name),
             on_done,
             |_| {},
             || {},
@@ -274,37 +279,38 @@ impl Client {
 
     // ----------------------------------------------------------------------------------
 
-    pub fn post_json<I: Serialize, O: for<'de> Deserialize<'de>>(
+    pub fn get_tx(
         ctx: &Context,
-        path: &str,
-        body: I,
-        on_done: impl 'static + Send + FnOnce(),
-        on_success: impl 'static + Send + FnOnce(O),
-        on_error: impl 'static + Send + FnOnce(),
+        txid: Txid,
+        on_success: impl 'static + Send + FnOnce(Transaction),
     ) {
+        Loading::start_loading_txid(ctx, txid);
+
+        let request = get(format!("tx/{txid}"));
+
+        let ctx2 = ctx.clone();
+
         Self::fetch_json(
             ctx,
-            Request::json(format!("{API_BASE}/{path}"), &body).unwrap(),
-            on_done,
+            request,
+            move || {
+                Loading::loading_txid_done(&ctx2, txid);
+            },
             on_success,
-            on_error,
+            || {},
         );
     }
 
-    pub fn get_json<O: for<'de> Deserialize<'de>>(
+    // ----------------------------------------------------------------------------------
+
+    fn get_json<O: for<'de> Deserialize<'de>>(
         ctx: &Context,
         path: &str,
         on_done: impl 'static + Send + FnOnce(),
         on_success: impl 'static + Send + FnOnce(O),
         on_error: impl 'static + Send + FnOnce(),
     ) {
-        Self::fetch_json(
-            ctx,
-            Request::get(format!("{API_BASE}/{path}")),
-            on_done,
-            on_success,
-            on_error,
-        );
+        Self::fetch_json(ctx, get(path), on_done, on_success, on_error);
     }
 
     /// Automatically adds session header if user is logged in.

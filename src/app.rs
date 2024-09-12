@@ -140,16 +140,10 @@ impl App {
                 );
 
                 let sender = self.update_sender.clone();
-                let ctx2 = ctx.clone();
 
-                Loading::start_loading_txid(ctx, txid);
-
-                Client::get_json(
+                Client::get_tx(
                     ctx,
-                    &format!("tx/{txid}"),
-                    move || {
-                        Loading::loading_txid_done(&ctx2, txid);
-                    },
+                    txid,
                     move |tx| {
                         sender
                             .send(Update::AddTx {
@@ -161,8 +155,7 @@ impl App {
                         if pos.is_none() {
                             sender.send(Update::SelectTx { txid }).unwrap();
                         }
-                    },
-                    || {},
+                    }
                 );
             }
             Update::SelectTx { txid } => {
