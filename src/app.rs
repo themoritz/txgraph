@@ -197,13 +197,12 @@ impl eframe::App for App {
             sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
 
-        let frame = Frame::canvas(&ctx.style())
-            .inner_margin(0.0)
-            .stroke(egui::Stroke::NONE);
-
         let sender2 = sender.clone();
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        let frame = Frame::side_top_panel(&ctx.style())
+            .inner_margin(4.0);
+
+        egui::TopBottomPanel::top("top_panel").frame(frame).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.store.about.show_toggle(ui);
 
@@ -304,6 +303,10 @@ impl eframe::App for App {
             });
         });
 
+        let frame = Frame::canvas(&ctx.style())
+            .inner_margin(0.0)
+            .stroke(egui::Stroke::NONE);
+
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
@@ -316,6 +319,7 @@ impl eframe::App for App {
                     response.rect.right_top() + Vec2::new(-5., 10.),
                 ),
                 egui::Layout::right_to_left(egui::Align::Min),
+                None
             ));
 
             ui.set_clip_rect(response.rect);

@@ -3,7 +3,7 @@ name = "txgraph"
 version = "0.1.0"
 authors = ["Moritz Drexl <mdrexl@fastmail.fm>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.76"
 
 [features]
 # To use profiling, just sprinkle `puffin::profile_function!()` calls in your code.
@@ -13,8 +13,8 @@ rust-version = "1.65"
 profiling = ["puffin", "puffin_http", "eframe/puffin"]
 
 [dependencies]
-egui = "0.27.1"
-eframe = { version = "0.27.1", default-features = false, features = ["glow", "persistence"] }
+egui = "0.28.1"
+eframe = { version = "0.28.1", default-features = false, features = ["glow", "persistence"] }
 ehttp = "0.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
@@ -23,18 +23,17 @@ chrono = "0.4.24"
 reunion = "0.1.14"
 dark-light = "1.1.1"
 base64 = "0.13.1"
+log = "0.4"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
+env_logger = "0.10"
 rand = "0.8.5"
 puffin = {version = "0.19.0", optional = true }
 puffin_http = { version = "0.16", optional = true }
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
-tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4.42"
 wasm-bindgen = "0.2.84"
 web-sys = { version = "0.3.69", features = ["console", "Window"] }
