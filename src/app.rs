@@ -13,7 +13,7 @@ use crate::{
     graph::Graph,
     layout::Layout,
     loading::Loading,
-    notifications::Notifications,
+    notifications::{Notifications, Notify},
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
@@ -65,6 +65,7 @@ pub struct App {
     custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
+    notifications: Notifications,
 }
 
 impl App {
@@ -116,6 +117,7 @@ impl App {
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
+            notifications: Notifications::new(&cc.egui_ctx),
         }
     }
 
@@ -244,7 +246,7 @@ impl eframe::App for App {
                                     self.import_text = String::new();
                                 }
                                 Err(e) => {
-                                    Notifications::error(ctx, "Could not import Json", Some(&e))
+                                    ctx.notify_error("Could not import Json", Some(&e))
                                 }
                             }
                             ui.close_menu();
@@ -319,7 +321,7 @@ impl eframe::App for App {
                     response.rect.right_top() + Vec2::new(-5., 10.),
                 ),
                 egui::Layout::right_to_left(egui::Align::Min),
-                None
+                None,
             ));
 
             ui.set_clip_rect(response.rect);
@@ -392,6 +394,6 @@ impl eframe::App for App {
 
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 
-        Notifications::show(ctx);
+        self.notifications.show(ctx);
     }
 }

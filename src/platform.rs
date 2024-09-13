@@ -7,13 +7,10 @@ pub mod inner {
 
     use crate::app::Update;
     use crate::bitcoin::Txid;
-    use crate::notifications::Notifications;
+    use crate::notifications::Notify;
 
     #[wasm_bindgen]
     extern "C" {
-        #[wasm_bindgen(js_namespace = console)]
-        fn log(s: &str);
-
         #[wasm_bindgen(js_name = addRouteListener)]
         fn add_route_listener_impl(callback: &Closure<dyn Fn(String)>);
 
@@ -29,8 +26,8 @@ pub mod inner {
         let mut hash = env!("GIT_COMMIT_HASH").to_string();
         hash.truncate(7);
         let pkg_version = env!("CARGO_PKG_VERSION");
-        log(&format!("Version: {pkg_version}"));
-        log(&format!("Git: {hash}"));
+        log::info!("Version: {pkg_version}");
+        log::info!("Git: {hash}");
     }
 
     pub fn add_route_listener(sender: Sender<Update>, ctx: egui::Context) {
@@ -44,16 +41,12 @@ pub mod inner {
                         ctx.request_repaint();
                     }
                     Err(err) => {
-                        Notifications::error(
-                            &ctx,
-                            "Can't navigate to transaction.",
-                            Some(&err.to_string()),
-                        );
+                        ctx.notify_error("Can't navigate to transaction.", Some(&err.to_string()));
                     }
                 }
             } else if url == "/" {
             } else {
-                Notifications::error(&ctx, "Unknown route.", Some(&url));
+                ctx.notify_error("Unknown route.", Some(&url));
             }
         });
 
