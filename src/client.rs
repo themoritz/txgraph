@@ -6,7 +6,7 @@ use crate::{
     bitcoin::{Transaction, Txid},
     export,
     loading::Loading,
-    notifications::Notifications,
+    notifications::Notify,
 };
 
 pub const API_BASE: &str = env!("API_BASE");
@@ -325,7 +325,7 @@ impl Client {
 
         let ctx2 = ctx.clone();
         let error = move |err: &str| {
-            Notifications::error(&ctx2, "Api request failed.", Some(err));
+            ctx2.notify_error("Api request failed.", Some(err));
             on_error();
         };
 

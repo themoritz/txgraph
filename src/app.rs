@@ -13,7 +13,7 @@ use crate::{
     graph::Graph,
     layout::Layout,
     loading::Loading,
-    notifications::Notifications,
+    notifications::{Notifications, Notify},
     platform::inner as platform,
     projects::ProjectsWindow,
     style::{Theme, ThemeSwitch},
@@ -70,6 +70,7 @@ pub struct App {
     custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
+    notifications: Notifications,
 }
 
 impl App {
@@ -120,6 +121,7 @@ impl App {
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
+            notifications: Notifications::new(&cc.egui_ctx),
         }
     }
 
@@ -230,13 +232,12 @@ impl eframe::App for App {
             sender.send(Update::LoadOrSelectTx { txid, pos }).unwrap();
         };
 
-        let frame = Frame::canvas(&ctx.style())
-            .inner_margin(0.0)
-            .stroke(egui::Stroke::NONE);
-
         let sender2 = sender.clone();
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        let frame = Frame::side_top_panel(&ctx.style())
+            .inner_margin(4.0);
+
+        egui::TopBottomPanel::top("top_panel").frame(frame).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.store.about.show_toggle(ui);
                 self.store.projects.show_toggle(ui);
@@ -294,6 +295,10 @@ impl eframe::App for App {
             });
         });
 
+        let frame = Frame::canvas(&ctx.style())
+            .inner_margin(0.0)
+            .stroke(egui::Stroke::NONE);
+
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             let mut response = ui.allocate_response(
                 ui.available_size_before_wrap(),
@@ -306,6 +311,7 @@ impl eframe::App for App {
                     response.rect.right_top() + Vec2::new(-5., 10.),
                 ),
                 egui::Layout::right_to_left(egui::Align::Min),
+                None,
             ));
 
             ui.set_clip_rect(response.rect);
@@ -391,6 +397,6 @@ impl eframe::App for App {
         );
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 
-        Notifications::show(ctx);
+        self.notifications.show(ctx);
     }
 }

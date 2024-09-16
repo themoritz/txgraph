@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     client::{Client, ProjectEntry},
     export, modal,
-    notifications::Notifications,
+    notifications::Notify,
 };
 
 #[derive(Default, Deserialize, Serialize)]
@@ -245,10 +245,9 @@ impl Projects {
                                                         .unwrap();
                                                 }
                                                 Err(e) => {
-                                                    Notifications::error(
-                                                        &ctx2,
+                                                    ctx2.notify_error(
                                                         "Could not load project",
-                                                        Some(e),
+                                                        Some(&e),
                                                     );
                                                 }
                                             }
@@ -364,7 +363,7 @@ impl Projects {
                             open_project(project);
                             self.import_text = String::new();
                         }
-                        Err(e) => Notifications::error(&ctx, "Could not import Json", Some(e)),
+                        Err(e) => ctx.notify_error("Could not import Json", Some(&e)),
                     }
                     ui.close_menu();
                 }
@@ -384,7 +383,7 @@ impl Projects {
                         if ui.button("Save").clicked() {
                             let ctx2 = ctx.clone();
                             Client::set_project_data(&ctx, active_project.id, save_project(), move || {
-                                Notifications::success(&ctx2, "Project saved");
+                                ctx2.notify_success("Project saved");
                             });
                         }
                         ui.weak("Last Saved: 2021-09-01 12:34"); // TODO:
