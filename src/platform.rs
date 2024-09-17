@@ -7,7 +7,7 @@ pub mod inner {
 
     use crate::app::Update;
     use crate::bitcoin::Txid;
-    use crate::notifications::Notify;
+    use crate::notifications::NotifyExt;
 
     #[wasm_bindgen]
     extern "C" {
@@ -43,12 +43,12 @@ pub mod inner {
                         ctx.request_repaint();
                     }
                     Err(err) => {
-                        ctx.notify_error("Can't navigate to transaction.", Some(&err.to_string()));
+                        ctx.notify_error("Can't navigate to transaction.", Some(err));
                     }
                 }
             } else if url == "/" {
             } else {
-                ctx.notify_error("Unknown route.", Some(&url));
+                ctx.notify_error("Unknown route.", Some(url));
             }
         });
 

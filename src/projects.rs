@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     client::{Client, ProjectEntry},
     export, modal,
-    notifications::Notify,
+    notifications::NotifyExt,
 };
 
 #[derive(Default, Deserialize, Serialize)]
@@ -249,7 +249,7 @@ impl Projects {
                                                 Err(e) => {
                                                     ctx2.notify_error(
                                                         "Could not load project",
-                                                        Some(&e),
+                                                        Some(e),
                                                     );
                                                 }
                                             }
@@ -365,7 +365,7 @@ impl Projects {
                             open_project(project);
                             self.import_text = String::new();
                         }
-                        Err(e) => ctx.notify_error("Could not import Json", Some(&e)),
+                        Err(e) => ctx.notify_error("Could not import Json", Some(e)),
                     }
                     ui.close_menu();
                 }

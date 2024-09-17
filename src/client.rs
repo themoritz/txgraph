@@ -6,7 +6,7 @@ use crate::{
     bitcoin::{Transaction, Txid},
     export,
     loading::Loading,
-    notifications::Notify,
+    notifications::NotifyExt,
 };
 
 pub const API_BASE: &str = env!("API_BASE");

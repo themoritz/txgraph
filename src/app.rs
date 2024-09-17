@@ -13,7 +13,7 @@ use crate::{
     graph::Graph,
     layout::Layout,
     loading::Loading,
-    notifications::{Notifications, Notify},
+    notifications::{Notifications, NotifyExt},
     platform::inner as platform,
     projects::ProjectsWindow,
     style::{Theme, ThemeSwitch},
