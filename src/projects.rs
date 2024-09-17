@@ -192,7 +192,9 @@ impl Projects {
                         header.col(|ui| {
                             ui.strong("Created");
                         });
-                        header.col(|_ui| {});
+                        header.col(|ui| {
+                            ui.strong("Public");
+                        });
                     })
                     .body(|mut body| {
                         for project in &loaded_projects.projects {
