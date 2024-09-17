@@ -1,7 +1,7 @@
 use egui::{Context, Id};
 use serde::Deserialize;
 
-use crate::{loading::Loading, notifications::Notify};
+use crate::{loading::Loading, notifications::NotifyExt};
 
 #[derive(Clone)]
 pub struct Client {
@@ -47,11 +47,11 @@ impl Client {
                                 Ok(json) => on_success(json),
                                 Err(err) => ctx.notify_error(
                                     "Could not decode Api response.",
-                                    Some(&err.to_string()),
+                                    Some(err),
                                 ),
                             }
                         } else {
-                            ctx.notify_error("Api response was empty.", None);
+                            ctx.notify_error("Api response was empty.", None::<&str>);
                         }
                     } else {
                         ctx.notify_error(
@@ -61,7 +61,7 @@ impl Client {
                     }
                 }
                 Err(err) => {
-                    ctx.notify_error("Api request failed.", Some(&err));
+                    ctx.notify_error("Api request failed.", Some(err));
                 }
             }
         });

@@ -260,10 +260,10 @@ impl Notifications {
     }
 }
 
-pub trait Notify {
-    fn notify(&self, kind: Kind, message: &str, detail: Option<&str>, ttl_sec: f32);
+pub trait NotifyExt {
+    fn notify(&self, kind: Kind, message: impl ToString, detail: Option<impl ToString>, ttl_sec: f32);
 
-    fn notify_error(&self, message: &str, detail: Option<&str>) {
+    fn notify_error(&self, message: impl ToString, detail: Option<impl ToString>) {
         self.notify(Kind::Error, message, detail, 8.0);
     }
 }
@@ -271,8 +271,8 @@ pub trait Notify {
 #[derive(Clone)]
 struct NotificationSender(Sender<Toast>);
 
-impl Notify for Context {
-    fn notify(&self, kind: Kind, message: &str, detail: Option<&str>, ttl_sec: f32) {
+impl NotifyExt for Context {
+    fn notify(&self, kind: Kind, message: impl ToString, detail: Option<impl ToString>, ttl_sec: f32) {
         if let Some(NotificationSender(sender)) = self.data(|d| d.get_temp(Id::NULL)) {
             sender
                 .send(Toast::new(

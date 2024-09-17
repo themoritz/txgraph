@@ -13,7 +13,7 @@ use crate::{
     graph::Graph,
     layout::Layout,
     loading::Loading,
-    notifications::{Notifications, Notify},
+    notifications::{Notifications, NotifyExt},
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
     transform::Transform,
@@ -246,7 +246,7 @@ impl eframe::App for App {
                                     self.import_text = String::new();
                                 }
                                 Err(e) => {
-                                    ctx.notify_error("Could not import Json", Some(&e))
+                                    ctx.notify_error("Could not import Json", Some(e))
                                 }
                             }
                             ui.close_menu();
