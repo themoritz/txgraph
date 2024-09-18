@@ -5,7 +5,6 @@ use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdi
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
-    client::Client,
     components::{about::About, custom_tx::CustomTx},
     export::Project,
     flight::Flight,
@@ -16,7 +15,7 @@ use crate::{
     notifications::{Notifications, NotifyExt},
     platform::inner as platform,
     style::{Theme, ThemeSwitch},
-    transform::Transform,
+    transform::Transform, tx_cache::TxCache,
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -138,16 +137,8 @@ impl App {
                 );
 
                 let sender = self.update_sender.clone();
-                let ctx2 = ctx.clone();
 
-                Loading::start_loading_txid(ctx, txid);
-
-                Client::fetch_json(
-                    move |base_url| ehttp::Request::get(&format!("{}/tx/{}", base_url, txid)),
-                    ctx,
-                    move || {
-                        Loading::loading_txid_done(&ctx2, txid);
-                    },
+                TxCache::get(ctx, txid,
                     move |tx| {
                         sender
                             .send(Update::AddTx {
@@ -225,9 +216,6 @@ impl eframe::App for App {
                                     self.store.annotations = project.annotations;
 
                                     self.store.graph = Graph::default();
-                                    for tx in &project.transactions {
-                                        load_tx(tx.txid, Some(tx.position));
-                                    }
 
                                     let num_txs = project.transactions.len() as f32;
                                     let graph_center = (project
@@ -236,6 +224,24 @@ impl eframe::App for App {
                                         .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
                                         / num_txs)
                                         .to_pos2();
+
+                                    let txids: Vec<_> = project.transactions.iter().map(|tx| tx.txid).collect();
+                                    let sender = sender.clone();
+                                    TxCache::get_batch(ctx, &txids,
+                                        move |txs| {
+                                            for ptx in project.transactions {
+                                                let tx = txs.get(&ptx.txid).unwrap();
+                                                sender
+                                                    .send(Update::AddTx {
+                                                        txid: ptx.txid,
+                                                        tx: tx.clone(),
+                                                        pos: ptx.position,
+                                                    })
+                                                    .unwrap();
+                                            }
+                                        },
+                                    );
+
                                     let screen_center = self
                                         .store
                                         .transform

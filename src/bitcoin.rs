@@ -143,7 +143,7 @@ impl AsRef<[u8]> for Txid {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Transaction {
     pub timestamp: i64,
     pub txid: Txid,
@@ -152,7 +152,7 @@ pub struct Transaction {
     pub outputs: Vec<Output>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Input {
     pub txid: Txid,
     pub vout: u32,
@@ -172,7 +172,7 @@ pub enum AddressType {
     Unknown,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Output {
     pub spending_txid: Option<Txid>,
     pub value: u64,

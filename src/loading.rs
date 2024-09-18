@@ -47,7 +47,7 @@ impl State {
     }
 }
 
-pub struct Loading {}
+pub struct Loading;
 
 impl Loading {
     fn modify(ctx: &Context, f: impl FnOnce(&mut State)) {

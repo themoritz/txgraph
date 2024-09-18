@@ -16,5 +16,6 @@ mod notifications;
 mod platform;
 mod style;
 mod transform;
+mod tx_cache;
 mod widgets;
 pub use app::App;

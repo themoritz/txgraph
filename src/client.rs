@@ -27,8 +27,7 @@ impl Client {
     pub fn fetch_json<T: for<'de> Deserialize<'de>>(
         mk_request: impl FnOnce(&str) -> ehttp::Request,
         ctx: &Context,
-        on_done: impl 'static + Send + FnOnce(),
-        on_success: impl 'static + Send + FnOnce(T),
+        on_done: impl 'static + Send + FnOnce(Result<T, FetchError>),
     ) {
         let slf = Self::load(ctx);
 
@@ -37,33 +36,53 @@ impl Client {
 
         let ctx = ctx.clone();
         ehttp::fetch(request, move |response| {
-            on_done();
             Loading::loading_done(&ctx);
-            match response {
+            let result = match response {
                 Ok(response) => {
                     if response.status == 200 {
                         if let Some(text) = response.text() {
-                            match serde_json::from_str(text) {
-                                Ok(json) => on_success(json),
-                                Err(err) => ctx.notify_error(
-                                    "Could not decode Api response.",
-                                    Some(err),
-                                ),
+                            match serde_json::from_str::<T>(text) {
+                                Ok(json) => Ok(json),
+                                Err(err) => Err(FetchError::DecodeFailed(err.to_string())),
                             }
                         } else {
-                            ctx.notify_error("Api response was empty.", None::<&str>);
+                            Err(FetchError::ResponseEmpty)
                         }
                     } else {
-                        ctx.notify_error(
-                            "Api request failed.",
-                            Some(response.text().unwrap_or_default()),
-                        );
+                        Err(FetchError::RequestFailed(
+                            response.text().unwrap_or_default().to_string(),
+                        ))
                     }
                 }
-                Err(err) => {
-                    ctx.notify_error("Api request failed.", Some(err));
-                }
+                Err(err) => Err(FetchError::RequestFailed(err)),
+            };
+            if let Err(ref err) = result {
+                err.notify(&ctx);
             }
+            on_done(result);
         });
+    }
+}
+
+#[derive(Debug)]
+pub enum FetchError {
+    RequestFailed(String),
+    DecodeFailed(String),
+    ResponseEmpty,
+}
+
+impl FetchError {
+    fn notify(&self, ctx: &Context) {
+        match self {
+            Self::RequestFailed(err) => {
+                ctx.notify_error("Api request failed", Some(err));
+            }
+            Self::DecodeFailed(err) => {
+                ctx.notify_error("Could not decode API response", Some(err));
+            }
+            Self::ResponseEmpty => {
+                ctx.notify_error("API esponse was empty", None::<&str>);
+            }
+        }
     }
 }
