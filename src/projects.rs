@@ -1,11 +1,14 @@
-use std::sync::{mpsc::{channel, Receiver, Sender}, Arc};
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc,
+};
 
 use chrono::{DateTime, Local, Utc};
-use egui::{mutex::Mutex, Context, Id, Label, Ui};
+use egui::{mutex::Mutex, Button, Context, Id, Label, TextEdit, Ui};
 use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
-use crate::{export, modal};
+use crate::{export, modal, notifications::NotifyExt};
 
 pub struct Projects {
     sender: Sender<Msg>,
@@ -14,6 +17,9 @@ pub struct Projects {
     open_project: Uuid,
     window_open: bool,
     input_new_name: Option<String>,
+    input_import_json: Option<String>,
+    input_rename: Option<String>,
+    input_confirm_delete: bool,
 }
 
 impl Projects {
@@ -31,18 +37,36 @@ impl Projects {
             open_project,
             window_open: true,
             input_new_name: None,
+            input_import_json: None,
+            input_rename: None,
+            input_confirm_delete: false,
         }
     }
 
     fn with_current(&mut self, f: impl FnOnce(&mut Project)) {
-        let i = self.projects.iter().position(|p| p.id == self.open_project).unwrap();
+        let i = self
+            .projects
+            .iter()
+            .position(|p| p.id == self.open_project)
+            .unwrap();
         f(&mut self.projects[i]);
+    }
+
+    fn current(&self) -> &Project {
+        &self
+            .projects
+            .iter()
+            .find(|p| p.id == self.open_project)
+            .unwrap()
     }
 
     fn apply_update(&mut self, msg: Msg) {
         match msg {
-            Msg::New { name } => {
-                let p = Project::new(name);
+            Msg::New { name, data } => {
+                let mut p = Project::new(name);
+                if let Some(data) = data {
+                    p.data = data;
+                }
                 self.open_project = p.id;
                 self.projects.push(p);
             }
@@ -63,7 +87,10 @@ impl Projects {
                 if let Some(p) = self.projects.first() {
                     self.open_project = p.id;
                 } else {
-                    self.apply_update(Msg::New { name: "Unnamed".to_string() });
+                    self.apply_update(Msg::New {
+                        name: "Unnamed".to_string(),
+                        data: None,
+                    });
                 }
             }
         }
@@ -79,9 +106,7 @@ impl Projects {
         let mut open = self.window_open;
         egui::Window::new("Projects")
             .open(&mut open)
-            .show(ctx, |ui| {
-                self.show_ui(ui)
-            });
+            .show(ctx, |ui| self.show_ui(ui));
         self.window_open = open;
     }
 
@@ -89,7 +114,7 @@ impl Projects {
         let receiver = self.receiver.clone();
         for msg in receiver.lock().try_iter() {
             self.apply_update(msg);
-        };
+        }
 
         TableBuilder::new(ui)
             .striped(true)
@@ -106,21 +131,19 @@ impl Projects {
             .sense(egui::Sense::click())
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("Project");
+                    ui.strong("Name");
                 });
                 header.col(|ui| {
                     ui.strong("Created");
                 });
                 header.col(|ui| {
-                    ui.strong("Public");
+                    ui.strong("Public?");
                 });
             })
             .body(|mut body| {
                 for project in &self.projects {
                     body.row(20.0, |mut row| {
-                        row.set_selected(
-                            project.id == self.open_project,
-                        );
+                        row.set_selected(project.id == self.open_project);
 
                         row.col(|ui| {
                             ui.add(Label::new(project.name.clone()).selectable(false));
@@ -152,61 +175,187 @@ impl Projects {
                 }
             });
 
-        ui.separator();
+        ui.add_space(3.0);
 
-        if ui.button("New Project").clicked() {
-            self.input_new_name = Some("Name".to_string());
-        }
-        if let Some(name) = &self.input_new_name {
-            let old_name = name.clone();
-            let mut new_name = name.clone();
-            modal::show(&ui.ctx(), "New Project", |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name:");
-                    ui.text_edit_singleline(&mut new_name);
-                });
-
-                ui.horizontal(|ui| {
-                    if ui.button("Cancel").clicked() {
-                        self.input_new_name = None;
-                    }
-                    if ui.button("Create").clicked() {
-                        self.sender.send(Msg::New { name: new_name.clone() }).unwrap();
-                        self.input_new_name = None;
-                    }
-                });
-            });
-            if new_name != old_name {
-                self.input_new_name = Some(new_name);
+        ui.horizontal(|ui| {
+            if ui.button("New Project").clicked() {
+                self.input_new_name = Some("".to_string());
             }
-        }
+            if let Some(name) = &self.input_new_name {
+                let old_name = name.clone();
+                let mut new_name = name.clone();
+                modal::show(&ui.ctx(), "New Project", |ui| {
+                    ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+
+                    ui.add_space(3.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            self.input_new_name = None;
+                        }
+                        if ui
+                            .add_enabled(!new_name.is_empty(), Button::new("Create"))
+                            .clicked()
+                        {
+                            self.sender
+                                .send(Msg::New {
+                                    name: new_name.clone(),
+                                    data: None,
+                                })
+                                .unwrap();
+                            self.input_new_name = None;
+                        }
+                    });
+                });
+                if new_name != old_name {
+                    self.input_new_name = Some(new_name);
+                }
+            }
+
+            if ui.button("Import JSON").clicked() {
+                self.input_import_json = Some("".to_string());
+            }
+            if let Some(json) = &self.input_import_json {
+                let old_json = json.clone();
+                let mut new_json = json.clone();
+                modal::show(&ui.ctx(), "Import Project", |ui| {
+                    ui.add(
+                        TextEdit::multiline(&mut new_json)
+                            .hint_text("JSON...")
+                            .code_editor()
+                            .desired_rows(6),
+                    );
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            self.input_import_json = None;
+                        }
+                        if ui
+                            .add_enabled(!new_json.is_empty(), Button::new("Import"))
+                            .clicked()
+                        {
+                            match export::Project::import(&new_json) {
+                                Ok(data) => {
+                                    self.sender
+                                        .send(Msg::New {
+                                            name: "JSON import".to_string(),
+                                            data: Some(data),
+                                        })
+                                        .unwrap();
+                                    self.input_import_json = None;
+                                }
+                                Err(e) => {
+                                    ui.ctx().notify_error("Could not import JSON", Some(e));
+                                }
+                            }
+                        }
+                    });
+                });
+                if new_json != old_json {
+                    self.input_import_json = Some(new_json);
+                }
+            }
+        });
+
+        ui.separator();
+        ui.strong("Current Project:");
+
+        ui.horizontal(|ui| {
+            if ui.button("Rename").clicked() {
+                self.input_rename = Some(self.current().name.to_string());
+            }
+            if let Some(name) = &self.input_rename {
+                let old_name = name.clone();
+                let mut new_name = name.clone();
+                modal::show(&ui.ctx(), "Rename Project", |ui| {
+                    ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+
+                    ui.add_space(3.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            self.input_rename = None;
+                        }
+                        if ui
+                            .add_enabled(!new_name.is_empty(), Button::new("Rename"))
+                            .clicked()
+                        {
+                            self.sender
+                                .send(Msg::Rename {
+                                    name: new_name.clone(),
+                                })
+                                .unwrap();
+                            self.input_rename = None;
+                        }
+                    });
+                });
+                if new_name != old_name {
+                    self.input_rename = Some(new_name);
+                }
+            }
+
+            if ui.button("Delete").clicked() {
+                self.input_confirm_delete = true;
+            }
+            if self.input_confirm_delete {
+                modal::show(&ui.ctx(), "Delete Project", |ui| {
+                    ui.label("Are you sure you want to delete the current project?");
+
+                    ui.add_space(3.0);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            self.input_confirm_delete = false;
+                        }
+                        if ui.button("Delete").clicked() {
+                            self.sender.send(Msg::Delete).unwrap();
+                            self.input_confirm_delete = false;
+                        }
+                    });
+                });
+            }
+
+            let mut is_public = self.current().is_public;
+            if ui.checkbox(&mut is_public, "Public").clicked() {
+                self.sender.send(Msg::TogglePublic).unwrap();
+            }
+
+            if ui.button("Export JSON").clicked() {
+                let current = self.current();
+                ui.output_mut(|o| o.copied_text = current.data.export());
+                ui.ctx()
+                    .notify_success(format!("Exported project `{}` to clipboard.", current.name));
+            }
+        });
     }
 }
 
 enum Msg {
     New {
-        name: String
+        name: String,
+        data: Option<export::Project>,
     },
     UpdateData {
-        data: export::Project
+        data: export::Project,
     },
     Select {
-        id: Uuid
+        id: Uuid,
     },
     Rename {
         name: String,
     },
     TogglePublic,
-    Delete
+    Delete,
 }
 
+#[derive(Clone)]
 struct Project {
     is_owned: bool,
     is_public: bool,
     data: export::Project,
     id: Uuid,
     name: String,
-    created_at: DateTime<Utc>
+    created_at: DateTime<Utc>,
 }
 
 impl Project {

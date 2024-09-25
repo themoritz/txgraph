@@ -1,9 +1,9 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, Vec2};
+use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
-    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::{Notifications, NotifyExt}, platform::inner as platform, projects::Projects, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
+    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::Notifications, platform::inner as platform, projects::Projects, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -40,6 +40,9 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
+    LoadProject {
+        data: Project
+    }
 }
 
 pub struct App {
@@ -48,7 +51,6 @@ pub struct App {
     update_receiver: Receiver<Update>,
     flight: Flight,
     ui_size: Vec2,
-    import_text: String,
     custom_tx: CustomTx,
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
@@ -103,7 +105,6 @@ impl App {
             update_receiver,
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
-            import_text: String::new(),
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
@@ -161,6 +162,43 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.store.graph.remove_tx(txid);
             }
+            Update::LoadProject { data } => {
+                self.store.annotations = data.annotations;
+
+                self.store.graph = Graph::default();
+
+                let num_txs = data.transactions.len() as f32;
+                let graph_center = (data
+                    .transactions
+                    .iter()
+                    .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
+                    / num_txs)
+                    .to_pos2();
+
+                let txids: Vec<_> = data.transactions.iter().map(|tx| tx.txid).collect();
+                let sender = self.update_sender.clone();
+                TxCache::get_batch(ctx, &txids,
+                    move |txs| {
+                        for ptx in data.transactions {
+                            let tx = txs.get(&ptx.txid).unwrap();
+                            sender
+                                .send(Update::AddTx {
+                                    txid: ptx.txid,
+                                    tx: tx.clone(),
+                                    pos: ptx.position,
+                                })
+                                .unwrap();
+                        }
+                    },
+                );
+
+                let screen_center = self
+                    .store
+                    .transform
+                    .pos_from_screen((self.ui_size / 2.0).to_pos2());
+
+                self.store.transform.pan_to(graph_center, screen_center);
+            }
         }
     }
 }
@@ -193,67 +231,6 @@ impl eframe::App for App {
                 self.projects.show_toggle(ui);
 
                 ui.separator();
-
-                /*
-                ui.menu_button("Project", |ui| {
-                    if ui.button("Export to Clipboard").clicked() {
-                        ui.output_mut(|o| o.copied_text = self.store.export());
-                        ui.close_menu();
-                    }
-                    ui.menu_button("Import", |ui| {
-                        ui.add(
-                            TextEdit::singleline(&mut self.import_text).hint_text("Paste JSON..."),
-                        );
-                        if ui.button("Go").clicked() {
-                            match Project::import(&self.import_text) {
-                                Ok(project) => {
-                                    self.store.annotations = project.annotations;
-
-                                    self.store.graph = Graph::default();
-
-                                    let num_txs = project.transactions.len() as f32;
-                                    let graph_center = (project
-                                        .transactions
-                                        .iter()
-                                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
-                                        / num_txs)
-                                        .to_pos2();
-
-                                    let txids: Vec<_> = project.transactions.iter().map(|tx| tx.txid).collect();
-                                    let sender = sender.clone();
-                                    TxCache::get_batch(ctx, &txids,
-                                        move |txs| {
-                                            for ptx in project.transactions {
-                                                let tx = txs.get(&ptx.txid).unwrap();
-                                                sender
-                                                    .send(Update::AddTx {
-                                                        txid: ptx.txid,
-                                                        tx: tx.clone(),
-                                                        pos: ptx.position,
-                                                    })
-                                                    .unwrap();
-                                            }
-                                        },
-                                    );
-
-                                    let screen_center = self
-                                        .store
-                                        .transform
-                                        .pos_from_screen((self.ui_size / 2.0).to_pos2());
-
-                                    self.store.transform.pan_to(graph_center, screen_center);
-
-                                    self.import_text = String::new();
-                                }
-                                Err(e) => {
-                                    ctx.notify_error("Could not import Json", Some(e))
-                                }
-                            }
-                            ui.close_menu();
-                        }
-                    });
-                });
-                */
 
                 ui.menu_button("Tx", |ui| {
                     ui.menu_button("Load Custom Txid", |ui| {

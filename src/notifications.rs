@@ -266,6 +266,10 @@ pub trait NotifyExt {
     fn notify_error(&self, message: impl ToString, detail: Option<impl ToString>) {
         self.notify(Kind::Error, message, detail, 8.0);
     }
+
+    fn notify_success(&self, message: impl ToString) {
+        self.notify(Kind::Success, message, None::<&str>, 6.0);
+    }
 }
 
 #[derive(Clone)]
