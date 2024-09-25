@@ -7,7 +7,7 @@ use crate::{annotations, bitcoin::Txid, graph::Graph};
 
 // Public interface
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Default, PartialEq, Eq, Debug, Clone)]
 pub struct Project {
     pub annotations: annotations::Annotations,
     pub transactions: Vec<Transaction>,

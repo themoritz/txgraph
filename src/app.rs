@@ -3,19 +3,7 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, TextEdit, Vec2};
 
 use crate::{
-    annotations::Annotations,
-    bitcoin::{Transaction, Txid},
-    components::{about::About, custom_tx::CustomTx},
-    export::Project,
-    flight::Flight,
-    framerate::FrameRate,
-    graph::Graph,
-    layout::Layout,
-    loading::Loading,
-    notifications::{Notifications, NotifyExt},
-    platform::inner as platform,
-    style::{Theme, ThemeSwitch},
-    transform::Transform, tx_cache::TxCache,
+    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::{Notifications, NotifyExt}, platform::inner as platform, projects::Projects, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -65,6 +53,7 @@ pub struct App {
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
     notifications: Notifications,
+    projects: Projects,
 }
 
 impl App {
@@ -102,6 +91,8 @@ impl App {
             AppStore::default()
         };
 
+        // cc.egui_ctx.set_debug_on_hover(true);
+
         let (update_sender, update_receiver) = channel();
 
         platform::add_route_listener(update_sender.clone(), cc.egui_ctx.clone());
@@ -117,6 +108,7 @@ impl App {
             framerate: FrameRate::default(),
             about_rect: None,
             notifications: Notifications::new(&cc.egui_ctx),
+            projects: Projects::new(&cc.egui_ctx),
         }
     }
 
@@ -198,9 +190,11 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel").frame(frame).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.store.about.show_toggle(ui);
+                self.projects.show_toggle(ui);
 
                 ui.separator();
 
+                /*
                 ui.menu_button("Project", |ui| {
                     if ui.button("Export to Clipboard").clicked() {
                         ui.output_mut(|o| o.copied_text = self.store.export());
@@ -259,6 +253,7 @@ impl eframe::App for App {
                         }
                     });
                 });
+                */
 
                 ui.menu_button("Tx", |ui| {
                     ui.menu_button("Load Custom Txid", |ui| {
@@ -399,6 +394,7 @@ impl eframe::App for App {
         });
 
         self.about_rect = self.store.about.show_window(ctx, load_tx);
+        self.projects.show_window(ctx);
 
         self.notifications.show(ctx);
     }
