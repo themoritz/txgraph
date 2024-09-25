@@ -8,7 +8,7 @@ use egui::{mutex::Mutex, Button, Context, Id, Label, TextEdit, Ui};
 use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
-use crate::{export, modal, notifications::NotifyExt};
+use crate::{export, modal, notifications::NotifyExt, style};
 
 pub struct Projects {
     sender: Sender<Msg>,
@@ -219,12 +219,30 @@ impl Projects {
                 let old_json = json.clone();
                 let mut new_json = json.clone();
                 modal::show(&ui.ctx(), "Import Project", |ui| {
-                    ui.add(
-                        TextEdit::multiline(&mut new_json)
-                            .hint_text("JSON...")
-                            .code_editor()
-                            .desired_rows(6),
-                    );
+
+                    let theme = egui_extras::syntax_highlighting::CodeTheme::from_style(ui.style());
+
+                    let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
+                        let mut layout_job = egui_extras::syntax_highlighting::highlight(
+                            ui.ctx(),
+                            &theme,
+                            string,
+                            "toml",
+                        );
+                        layout_job.wrap.max_width = wrap_width;
+                        ui.fonts(|f| f.layout_job(layout_job))
+                    };
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut new_json)
+                                .font(style::get(ui).font_id())
+                                .desired_rows(10)
+                                .lock_focus(true)
+                                .desired_width(f32::INFINITY)
+                                .layouter(&mut layouter),
+                        );
+                    });
 
                     ui.horizontal(|ui| {
                         if ui.button("Cancel").clicked() {
