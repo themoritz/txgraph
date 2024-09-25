@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use egui::Pos2;
 use serde::{Deserialize, Serialize};
 
-use crate::{annotations, bitcoin::Txid, graph::Graph};
+use crate::{annotations, bitcoin::Txid, graph::Graph, layout::Layout};
 
 // Public interface
 
 #[derive(Default, PartialEq, Eq, Debug, Clone)]
 pub struct Project {
     pub annotations: annotations::Annotations,
+    pub layout: Layout0,
     pub transactions: Vec<Transaction>,
 }
 
@@ -18,6 +19,7 @@ impl Project {
         Project0 {
             version: 0,
             annotations: self.annotations.export(),
+            layout: self.layout.clone(),
             transactions: self
                 .transactions
                 .iter()
@@ -31,6 +33,7 @@ impl Project {
         let project0 = Project0::import(string)?;
         Ok(Self {
             annotations: annotations::Annotations::import(&project0.annotations)?,
+            layout: project0.layout,
             transactions: project0
                 .transactions
                 .into_iter()
@@ -39,9 +42,10 @@ impl Project {
         })
     }
 
-    pub fn new(graph: &Graph, annotations: &annotations::Annotations) -> Self {
+    pub fn new(graph: &Graph, annotations: &annotations::Annotations, layout: &Layout) -> Self {
         Self {
             annotations: (*annotations).clone(),
+            layout: layout.export(),
             transactions: graph.export(),
         }
     }
@@ -80,6 +84,8 @@ struct Project0 {
     #[serde(default)]
     version: u32,
     annotations: Annotations0,
+    #[serde(default)]
+    layout: Layout0,
     transactions: Vec<Transaction0>,
 }
 
@@ -100,11 +106,27 @@ impl Project0 {
 
 // This is public because it's used in the conversion code in annotations.rs
 #[derive(Serialize, Deserialize)]
-pub struct Annotations0 {
+pub(crate) struct Annotations0 {
     pub tx_color: HashMap<String, [u8; 3]>,
     pub tx_label: HashMap<String, String>,
     pub coin_color: HashMap<String, [u8; 3]>,
     pub coin_label: HashMap<String, String>,
+}
+
+// Public so that conversion code in layout.rs can use it.
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+pub struct Layout0 {
+    pub scale: u64,
+    pub x1: u64,
+    pub y1: u64,
+    pub x2: u64,
+    pub y2: u64,
+}
+
+impl Default for Layout0 {
+    fn default() -> Self {
+        Layout::default().export()
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -156,6 +178,13 @@ mod test {
                     "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:0": "Output"
                 }
             },
+            "layout": {
+                "scale": 50,
+                "x1": 1000000,
+                "y1": 30,
+                "x2": 10000000000000,
+                "y2": 500
+            },
             "transactions": [
                 {
                     "txid": "ea44e97271691990157559d0bdd9959e02790c34db6c006d779e82fa5aee708e",
@@ -186,6 +215,13 @@ mod test {
 
         Project {
             annotations: a,
+            layout: Layout0 {
+                scale: 50,
+                x1: 1000000,
+                y1: 30,
+                x2: 10000000000000,
+                y2: 500,
+            },
             transactions: vec![
                 Transaction {
                     txid: Txid::new(

@@ -20,7 +20,7 @@ pub struct AppStore {
 
 impl AppStore {
     pub fn export(&self) -> String {
-        Project::new(&self.graph, &self.annotations).export()
+        Project::new(&self.graph, &self.annotations, &self.layout).export()
     }
 }
 
@@ -92,8 +92,6 @@ impl App {
         } else {
             AppStore::default()
         };
-
-        // cc.egui_ctx.set_debug_on_hover(true);
 
         let (update_sender, update_receiver) = channel();
 

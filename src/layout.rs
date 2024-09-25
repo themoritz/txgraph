@@ -1,7 +1,7 @@
 use egui::{Grid, RichText};
 use serde::{Deserialize, Serialize};
 
-use crate::bitcoin::Sats;
+use crate::{bitcoin::Sats, export};
 
 #[derive(Deserialize, Serialize, Default)]
 #[serde(default)]
@@ -25,25 +25,41 @@ impl Layout {
         ui.label(RichText::new("Misc:").strong());
         ui.checkbox(&mut self.show_arrows, "Show arrows on edges");
     }
+
+    pub fn import(&mut self, layout: &export::Layout0) {
+        self.force_params.scale = layout.scale;
+        self.scale.x1 = layout.x1;
+        self.scale.y1 = layout.y1;
+        self.scale.x2 = layout.x2;
+        self.scale.y2 = layout.y2;
+    }
+
+    pub fn export(&self) -> export::Layout0 {
+        export::Layout0 {
+            scale: self.force_params.scale,
+            x1: self.scale.x1,
+            y1: self.scale.y1,
+            x2: self.scale.x2,
+            y2: self.scale.y2
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 pub struct ForceParams {
-    pub scale: f32,
+    pub scale: u64,
     pub dt: f32,
     pub cooloff: f32,
-    pub tx_repulsion_radius: f32,
     pub active: bool,
 }
 
 impl Default for ForceParams {
     fn default() -> Self {
         Self {
-            scale: 50.0,
+            scale: 50,
             dt: 0.08,
             cooloff: 0.85,
-            tx_repulsion_radius: 150.0,
             active: true,
         }
     }
@@ -59,14 +75,7 @@ impl ForceParams {
             ui.end_row();
 
             ui.label("Scale:");
-            ui.add(egui::Slider::new(&mut self.scale, 5.0..=200.0));
-            ui.end_row();
-
-            ui.label("Tx repulsion radius:");
-            ui.add(egui::Slider::new(
-                &mut self.tx_repulsion_radius,
-                50.0..=500.0,
-            ));
+            ui.add(egui::Slider::new(&mut self.scale, 5..=200));
             ui.end_row();
 
             ui.label("Speed:");
@@ -84,9 +93,9 @@ impl ForceParams {
 #[derive(Serialize, Deserialize)]
 pub struct Scale {
     x1: u64,
-    y1: f64,
+    y1: u64,
     x2: u64,
-    y2: f64,
+    y2: u64,
 }
 
 #[allow(clippy::inconsistent_digit_grouping)]
@@ -94,17 +103,17 @@ impl Default for Scale {
     fn default() -> Self {
         Self {
             x1: 1_000_000,
-            y1: 30.0,
+            y1: 30,
             x2: 100_000_00_000_000,
-            y2: 500.0,
+            y2: 500,
         }
     }
 }
 
 impl Scale {
     pub fn apply(&self, x: u64) -> f64 {
-        let b = -(self.y2 / self.y1).ln() / ((self.x1 as f64).ln() - (self.x2 as f64).ln());
-        let a = self.y1 / (self.x1 as f64).powf(b);
+        let b = -(self.y2 as f64 / self.y1 as f64).ln() / ((self.x1 as f64).ln() - (self.x2 as f64).ln());
+        let a = self.y1 as f64 / (self.x1 as f64).powf(b);
 
         (a * (x as f64).powf(b)).max(10.0)
     }
@@ -126,7 +135,7 @@ impl Scale {
 
             ui.label("Size:")
                 .on_hover_text("What size should the smallest transaction be?");
-            ui.add(egui::Slider::new(&mut self.y1, 30.0..=500.0).text("points"));
+            ui.add(egui::Slider::new(&mut self.y1, 30..=500).text("points"));
             ui.end_row();
 
             ui.label("To:")
@@ -141,7 +150,7 @@ impl Scale {
 
             ui.label("Size:")
                 .on_hover_text("What size should the largest transaction be?");
-            ui.add(egui::Slider::new(&mut self.y2, 30.0..=500.0).text("points"));
+            ui.add(egui::Slider::new(&mut self.y2, 30..=500).text("points"));
             ui.end_row();
         });
     }

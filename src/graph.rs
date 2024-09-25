@@ -719,7 +719,8 @@ impl Graph {
             return;
         }
 
-        let scale2 = layout.force_params.scale * layout.force_params.scale;
+        let scale2 = layout.force_params.scale as f32 * layout.force_params.scale as f32;
+        let tx_repulsion_radius = 2.0 * layout.force_params.scale as f32;
 
         fn kernel(radius: f32, dst: f32) -> f32 {
             let value = (1.0 - dst / radius * dst / radius).max(0.0);
@@ -735,13 +736,13 @@ impl Graph {
                 let spacing = clear_spacing(rect, other_rect);
 
                 // If the spacing is outside of the force radius we don't need to calculate the force
-                if spacing > layout.force_params.tx_repulsion_radius {
+                if spacing > tx_repulsion_radius {
                     continue;
                 }
 
                 let diff = other_rect.center() - rect.center();
                 let force = -scale2 / spacing
-                    * kernel(layout.force_params.tx_repulsion_radius, spacing)
+                    * kernel(tx_repulsion_radius, spacing)
                     * diff.normalized();
 
                 self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
@@ -762,7 +763,7 @@ impl Graph {
 
             // Attraction force between nodes
             let diff = to_rect.center_top() - from_rect.center_bottom();
-            let mut force = diff.length_sq() / layout.force_params.scale * diff.normalized();
+            let mut force = diff.length_sq() / layout.force_params.scale as f32 * diff.normalized();
 
             // Repulsion force between layers
             force -= Vec2::new(0.0, scale2 / diff.y.max(2.0));
