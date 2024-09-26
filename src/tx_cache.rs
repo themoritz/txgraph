@@ -90,6 +90,8 @@ impl State {
             }
         }
 
+        let ctx2 = ctx.clone();
+
         let len_expected = txids.len();
         wasm_bindgen_futures::spawn_local(async move {
             let mut results = vec![];
@@ -101,6 +103,7 @@ impl State {
             }
             if let Ok(txs) = results.into_iter().collect::<Result<Vec<_>, _>>() {
                 let map: HashMap<_, _> = txs.into_iter().map(|tx| (tx.txid, tx)).collect();
+                ctx2.request_repaint();
                 on_success(map)
             }
         });

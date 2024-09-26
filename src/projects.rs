@@ -9,11 +9,12 @@ use egui_extras::{Column, TableBuilder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{export, modal, notifications::NotifyExt, style};
+use crate::{app::Update, export, modal, notifications::NotifyExt, style};
 
 pub struct Projects {
     sender: Sender<Msg>,
     receiver: Arc<Mutex<Receiver<Msg>>>,
+    update_sender: Sender<Update>,
     projects: Vec<Project>,
     open_project: Uuid,
     window_open: bool,
@@ -23,8 +24,15 @@ pub struct Projects {
     input_confirm_delete: bool,
 }
 
+/// This is a bit of a hack. Ideally, we'd like this to be part of [AppStore].
+#[derive(Serialize, Deserialize)]
+struct ProjectsStore {
+    open_project: Uuid,
+    window_open: bool,
+}
+
 impl Projects {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &Context, update_sender: Sender<Update>) -> Self {
         let (sender, receiver) = channel();
         ctx.data_mut(|d| d.insert_temp(Id::NULL, ProjectsSender(sender.clone())));
 
@@ -34,6 +42,7 @@ impl Projects {
         Self {
             sender,
             receiver: Arc::new(Mutex::new(receiver)),
+            update_sender,
             projects: vec![project],
             open_project,
             window_open: true,
@@ -42,6 +51,54 @@ impl Projects {
             input_rename: None,
             input_confirm_delete: false,
         }
+    }
+
+    pub fn save(&self, storage: &mut dyn eframe::Storage) {
+        // We ideally don't want to break the data in this key, ever:
+        eframe::set_value(storage, "projects", &self.projects);
+
+        eframe::set_value(
+            storage,
+            "projects_store",
+            &ProjectsStore {
+                open_project: self.open_project,
+                window_open: self.window_open,
+            },
+        );
+    }
+
+    pub fn load(
+        ctx: &Context,
+        storage: &dyn eframe::Storage,
+        update_sender: Sender<Update>,
+    ) -> Self {
+        let mut result = Self::new(ctx, update_sender);
+
+        if let Some(projects) = eframe::get_value(storage, "projects") {
+            result.projects = projects;
+        }
+
+        if let Some(projects_store) = eframe::get_value::<ProjectsStore>(storage, "projects_store")
+        {
+            result.window_open = projects_store.window_open;
+            result.open_project = projects_store.open_project;
+        }
+
+        if result.projects.is_empty() {
+            result.projects = vec![Project::new("Unnamed".to_string())];
+        }
+
+        // Make sure `open_project` is actually part of the projects
+        if result
+            .projects
+            .iter()
+            .find(|p| p.id == result.open_project)
+            .is_none()
+        {
+            result.open_project = result.projects.first().unwrap().id;
+        }
+
+        result
     }
 
     fn with_current(&mut self, f: impl FnOnce(&mut Project)) {
@@ -61,6 +118,10 @@ impl Projects {
             .unwrap()
     }
 
+    pub fn current_data(&self) -> export::Project {
+        self.current().data.clone()
+    }
+
     fn apply_update(&mut self, msg: Msg) {
         match msg {
             Msg::New { name, data } => {
@@ -76,6 +137,11 @@ impl Projects {
             }
             Msg::Select { id } => {
                 self.open_project = id;
+                self.update_sender
+                    .send(Update::LoadProject {
+                        data: self.current_data(),
+                    })
+                    .unwrap();
             }
             Msg::Rename { name } => {
                 self.with_current(|p| p.name = name);
@@ -220,7 +286,6 @@ impl Projects {
                 let old_json = json.clone();
                 let mut new_json = json.clone();
                 modal::show(&ui.ctx(), "Import Project", |ui| {
-
                     let theme = egui_extras::syntax_highlighting::CodeTheme::from_style(ui.style());
 
                     let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
@@ -393,7 +458,7 @@ impl Project {
 #[derive(Clone)]
 struct ProjectsSender(Sender<Msg>);
 
-struct ProjectsHandle;
+pub struct ProjectsHandle;
 
 impl ProjectsHandle {
     pub fn update_project(ctx: &Context, data: export::Project) {

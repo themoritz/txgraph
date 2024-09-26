@@ -3,16 +3,14 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
-    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::Notifications, platform::inner as platform, projects::Projects, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
+    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::{self, Project}, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::Notifications, platform::inner as platform, projects::{Projects, ProjectsHandle}, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
 };
 
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AppStore {
     layout: Layout,
-    graph: Graph,
     transform: Transform,
-    annotations: Annotations,
     theme: Theme,
     about: About,
 }
@@ -40,8 +38,13 @@ pub enum Update {
 
 pub struct App {
     store: AppStore,
+
     update_sender: Sender<Update>,
     update_receiver: Receiver<Update>,
+
+    annotations: Annotations,
+    graph: Graph,
+
     flight: Flight,
     ui_size: Vec2,
     custom_tx: CustomTx,
@@ -78,15 +81,19 @@ impl App {
             .insert(0, "iosevka".to_owned());
         cc.egui_ctx.set_fonts(fonts);
 
+        let (update_sender, update_receiver) = channel();
+
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let store = if let Some(storage) = cc.storage {
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
+        let (store, projects) = if let Some(storage) = cc.storage {
+            let store = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            let projects = Projects::load(&cc.egui_ctx, storage, update_sender.clone());
+            (store, projects)
         } else {
-            AppStore::default()
+            (AppStore::default(), Projects::new(&cc.egui_ctx, update_sender.clone()))
         };
 
-        let (update_sender, update_receiver) = channel();
+        update_sender.send(Update::LoadProject { data: projects.current_data() }).unwrap();
 
         platform::add_route_listener(update_sender.clone(), cc.egui_ctx.clone());
 
@@ -94,21 +101,25 @@ impl App {
             store,
             update_sender,
             update_receiver,
+
+            annotations: Default::default(),
+            graph: Default::default(),
+
             flight: Flight::new(),
             ui_size: platform::get_viewport_dimensions().unwrap_or_default(),
             custom_tx: Default::default(),
             framerate: FrameRate::default(),
             about_rect: None,
             notifications: Notifications::new(&cc.egui_ctx),
-            projects: Projects::new(&cc.egui_ctx),
+            projects,
         }
     }
 
     pub fn apply_update(&mut self, ctx: &Context, update: Update) {
         match update {
             Update::LoadOrSelectTx { txid, pos } => {
-                if let Some(existing_pos) = self.store.graph.get_tx_pos(txid) {
-                    self.store.graph.select(txid);
+                if let Some(existing_pos) = self.graph.get_tx_pos(txid) {
+                    self.graph.select(txid);
                     self.flight.start(
                         (self.ui_size / 2.0).to_pos2(),
                         self.store.transform.pos_to_screen(existing_pos),
@@ -138,8 +149,8 @@ impl App {
                 );
             }
             Update::SelectTx { txid } => {
-                self.store.graph.select(txid);
-                if let Some(pos) = self.store.graph.get_tx_pos(txid) {
+                self.graph.select(txid);
+                if let Some(pos) = self.graph.get_tx_pos(txid) {
                     if let Some(rect) = self.about_rect {
                         if rect.contains(self.store.transform.pos_to_screen(pos)) {
                             self.store.about.close();
@@ -148,23 +159,28 @@ impl App {
                 }
             }
             Update::AddTx { txid, tx, pos } => {
-                self.store.graph.add_tx(txid, tx, pos);
+                self.graph.add_tx(txid, tx, pos);
             }
             Update::RemoveTx { txid } => {
-                self.store.graph.remove_tx(txid);
+                self.graph.remove_tx(txid);
             }
             Update::LoadProject { data } => {
-                self.store.annotations = data.annotations;
+                self.annotations = data.annotations;
+                self.store.layout.import(&data.layout);
+                self.graph = Graph::default();
 
-                self.store.graph = Graph::default();
 
-                let num_txs = data.transactions.len() as f32;
-                let graph_center = (data
-                    .transactions
-                    .iter()
-                    .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
-                    / num_txs)
-                    .to_pos2();
+                let graph_center = if data.transactions.is_empty() {
+                    Pos2::ZERO
+                } else {
+                    let num_txs = data.transactions.len() as f32;
+                    (data
+                        .transactions
+                        .iter()
+                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
+                        / num_txs)
+                        .to_pos2()
+                };
 
                 let txids: Vec<_> = data.transactions.iter().map(|tx| tx.txid).collect();
                 let sender = self.update_sender.clone();
@@ -197,6 +213,7 @@ impl App {
 impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, &self.store);
+        self.projects.save(storage);
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -251,11 +268,11 @@ impl eframe::App for App {
                         ui.close_menu();
                     }
                     if ui.button("Graph").clicked() {
-                        self.store.graph = Graph::default();
+                        self.graph = Graph::default();
                         ui.close_menu();
                     }
                     if ui.button("Annotations").clicked() {
-                        self.store.annotations = Annotations::default();
+                        self.annotations = Annotations::default();
                         ui.close_menu();
                     }
                     if ui.button("All").clicked() {
@@ -352,16 +369,18 @@ impl eframe::App for App {
                 }
             }
 
-            self.store.graph.draw(
+            self.graph.draw(
                 ui,
                 &self.store.transform,
                 sender2,
                 &self.store.layout,
-                &mut self.store.annotations,
+                &mut self.annotations,
             );
         });
 
         self.about_rect = self.store.about.show_window(ctx, load_tx);
+
+        ProjectsHandle::update_project(ctx, export::Project::new(&self.graph, &self.annotations, &self.store.layout));
         self.projects.show_window(ctx);
 
         self.notifications.show(ctx);
