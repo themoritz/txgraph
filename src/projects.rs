@@ -6,6 +6,7 @@ use std::sync::{
 use chrono::{DateTime, Local, Utc};
 use egui::{mutex::Mutex, Button, Context, Id, Label, TextEdit, Ui};
 use egui_extras::{Column, TableBuilder};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{export, modal, notifications::NotifyExt, style};
@@ -252,7 +253,7 @@ impl Projects {
                             .add_enabled(!new_json.is_empty(), Button::new("Import"))
                             .clicked()
                         {
-                            match export::Project::import(&new_json) {
+                            match serde_json::from_str(&new_json) {
                                 Ok(data) => {
                                     self.sender
                                         .send(Msg::New {
@@ -340,7 +341,7 @@ impl Projects {
 
             if ui.button("Export JSON").clicked() {
                 let current = self.current();
-                ui.output_mut(|o| o.copied_text = current.data.export());
+                ui.output_mut(|o| o.copied_text = serde_json::to_string(&current.data).unwrap());
                 ui.ctx()
                     .notify_success(format!("Exported project `{}` to clipboard.", current.name));
             }
@@ -366,7 +367,7 @@ enum Msg {
     Delete,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Project {
     is_owned: bool,
     is_public: bool,

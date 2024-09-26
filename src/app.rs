@@ -6,9 +6,8 @@ use crate::{
     annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::Project, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::Notifications, platform::inner as platform, projects::Projects, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
 };
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Default, serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)]
 pub struct AppStore {
     layout: Layout,
     graph: Graph,
@@ -16,12 +15,6 @@ pub struct AppStore {
     annotations: Annotations,
     theme: Theme,
     about: About,
-}
-
-impl AppStore {
-    pub fn export(&self) -> String {
-        Project::new(&self.graph, &self.annotations, &self.layout).export()
-    }
 }
 
 pub enum Update {
@@ -41,8 +34,8 @@ pub enum Update {
         txid: Txid,
     },
     LoadProject {
-        data: Project
-    }
+        data: Project,
+    },
 }
 
 pub struct App {

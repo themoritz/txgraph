@@ -15,7 +15,17 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn export(&self) -> String {
+    pub fn new(graph: &Graph, annotations: &annotations::Annotations, layout: &Layout) -> Self {
+        Self {
+            annotations: (*annotations).clone(),
+            layout: layout.export(),
+            transactions: graph.export(),
+        }
+    }
+}
+
+impl Serialize for Project {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Project0 {
             version: 0,
             annotations: self.annotations.export(),
@@ -26,13 +36,16 @@ impl Project {
                 .map(Transaction::to_transaction0)
                 .collect(),
         }
-        .export()
+        .serialize(serializer)
     }
+}
 
-    pub fn import(string: &str) -> Result<Self, String> {
-        let project0 = Project0::import(string)?;
+impl<'de> Deserialize<'de> for Project {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let project0 = Project0::deserialize(deserializer)?;
         Ok(Self {
-            annotations: annotations::Annotations::import(&project0.annotations)?,
+            annotations: annotations::Annotations::import(&project0.annotations)
+                .map_err(serde::de::Error::custom)?,
             layout: project0.layout,
             transactions: project0
                 .transactions
@@ -40,14 +53,6 @@ impl Project {
                 .map(Transaction::from_transaction0)
                 .collect(),
         })
-    }
-
-    pub fn new(graph: &Graph, annotations: &annotations::Annotations, layout: &Layout) -> Self {
-        Self {
-            annotations: (*annotations).clone(),
-            layout: layout.export(),
-            transactions: graph.export(),
-        }
     }
 }
 
@@ -79,9 +84,21 @@ impl Transaction {
 
 // Version 0 of the project file format
 
+fn validate_version<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+    let version = u32::deserialize(deserializer)?;
+    if version == 0 {
+        Ok(version)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "Unsupported version: {}",
+            version
+        )))
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct Project0 {
-    #[serde(default)]
+    #[serde(deserialize_with = "validate_version")]
     version: u32,
     annotations: Annotations0,
     #[serde(default)]
@@ -89,24 +106,9 @@ struct Project0 {
     transactions: Vec<Transaction0>,
 }
 
-impl Project0 {
-    fn export(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
-
-    fn import(string: &str) -> Result<Self, String> {
-        let slf: Self = serde_json::from_str(string).map_err(|e| e.to_string())?;
-        if slf.version == 0 {
-            Ok(slf)
-        } else {
-            Err(format!("Unsupported version: {}", slf.version))
-        }
-    }
-}
-
 // This is public because it's used in the conversion code in annotations.rs
 #[derive(Serialize, Deserialize)]
-pub(crate) struct Annotations0 {
+pub struct Annotations0 {
     pub tx_color: HashMap<String, [u8; 3]>,
     pub tx_label: HashMap<String, String>,
     pub coin_color: HashMap<String, [u8; 3]>,
@@ -240,15 +242,15 @@ mod test {
 
     #[test]
     fn test_project_fixture_0() {
-        let actual = Project::import(PROJECT_FIXTURE_0).unwrap();
+        let actual = serde_json::from_str(&PROJECT_FIXTURE_0).unwrap();
         assert_eq!(project_expected(), actual);
     }
 
     #[test]
     fn test_project_roundtrip() {
         let expected = project_expected();
-        let string = expected.export();
-        let actual = Project::import(&string).unwrap();
+        let string = serde_json::to_string(&expected).unwrap();
+        let actual = serde_json::from_str(&string).unwrap();
         assert_eq!(expected, actual);
     }
 }

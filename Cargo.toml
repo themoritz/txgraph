@@ -20,14 +20,14 @@ ehttp = "0.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 hex = "0.4.3"
-chrono = "0.4.24"
+chrono = { version = "0.4.24", features = ["serde"] }
 reunion = "0.1.14"
 dark-light = "1.1.1"
 base64 = "0.13.1"
 log = "0.4"
 lru = "0.12.4"
 flume = "0.11.0"
-uuid = {version = "1.10.0", features = ["js", "v7"] }
+uuid = { version = "1.10.0", features = ["js", "v7", "serde"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
