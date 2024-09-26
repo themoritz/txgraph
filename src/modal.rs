@@ -8,16 +8,9 @@ pub fn show(ctx: &Context, title: impl Into<RichText>, add_contents: impl FnOnce
         .movable(false)
         .order(Order::Foreground)
         .show(ctx, |ui| {
-            let response = ui.interact(
-                rect,
-                Id::new("Model response"),
-                Sense::click(),
-            );
-            ui.painter().rect_filled(
-                rect,
-                0.0,
-                Color32::from_black_alpha(128),
-            );
+            let response = ui.interact(rect, Id::new("Model response"), Sense::click());
+            ui.painter()
+                .rect_filled(rect, 0.0, Color32::from_black_alpha(32));
             response
         });
 

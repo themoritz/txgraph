@@ -22,6 +22,7 @@ pub struct Projects {
     input_import_json: Option<String>,
     input_rename: Option<String>,
     input_confirm_delete: bool,
+    request_focus: bool,
 }
 
 /// This is a bit of a hack. Ideally, we'd like this to be part of [AppStore].
@@ -45,11 +46,12 @@ impl Projects {
             update_sender,
             projects: vec![project],
             open_project,
-            window_open: true,
+            window_open: false,
             input_new_name: None,
             input_import_json: None,
             input_rename: None,
             input_confirm_delete: false,
+            request_focus: false,
         }
     }
 
@@ -129,8 +131,9 @@ impl Projects {
                 if let Some(data) = data {
                     p.data = data;
                 }
-                self.open_project = p.id;
+                let id = p.id;
                 self.projects.push(p);
+                self.apply_update(Msg::Select { id });
             }
             Msg::UpdateData { data } => {
                 self.with_current(|p| p.data = data);
@@ -152,7 +155,7 @@ impl Projects {
             Msg::Delete => {
                 self.projects.retain(|p| p.id != self.open_project);
                 if let Some(p) = self.projects.first() {
-                    self.open_project = p.id;
+                    self.apply_update(Msg::Select { id: p.id });
                 } else {
                     self.apply_update(Msg::New {
                         name: "Unnamed".to_string(),
@@ -247,12 +250,18 @@ impl Projects {
         ui.horizontal(|ui| {
             if ui.button("New Project").clicked() {
                 self.input_new_name = Some("".to_string());
+                self.request_focus = true;
             }
             if let Some(name) = &self.input_new_name {
                 let old_name = name.clone();
                 let mut new_name = name.clone();
                 modal::show(&ui.ctx(), "New Project", |ui| {
-                    ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                    let resp =
+                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                    if self.request_focus {
+                        resp.request_focus();
+                        self.request_focus = false;
+                    }
 
                     ui.add_space(3.0);
 
@@ -281,6 +290,7 @@ impl Projects {
 
             if ui.button("Import JSON").clicked() {
                 self.input_import_json = Some("".to_string());
+                self.request_focus = true;
             }
             if let Some(json) = &self.input_import_json {
                 let old_json = json.clone();
@@ -300,7 +310,7 @@ impl Projects {
                     };
 
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.add(
+                        let resp = ui.add(
                             egui::TextEdit::multiline(&mut new_json)
                                 .font(style::get(ui).font_id())
                                 .desired_rows(10)
@@ -308,7 +318,13 @@ impl Projects {
                                 .desired_width(f32::INFINITY)
                                 .layouter(&mut layouter),
                         );
+                        if self.request_focus {
+                            resp.request_focus();
+                            self.request_focus = false;
+                        }
                     });
+
+                    ui.add_space(3.0);
 
                     ui.horizontal(|ui| {
                         if ui.button("Cancel").clicked() {
@@ -347,12 +363,18 @@ impl Projects {
         ui.horizontal(|ui| {
             if ui.button("Rename").clicked() {
                 self.input_rename = Some(self.current().name.to_string());
+                self.request_focus = true;
             }
             if let Some(name) = &self.input_rename {
                 let old_name = name.clone();
                 let mut new_name = name.clone();
                 modal::show(&ui.ctx(), "Rename Project", |ui| {
-                    ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                    let resp =
+                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                    if self.request_focus {
+                        resp.request_focus();
+                        self.request_focus = false;
+                    }
 
                     ui.add_space(3.0);
 
