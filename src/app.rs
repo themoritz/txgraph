@@ -78,7 +78,11 @@ impl App {
         );
         fonts.font_data.insert(
             "iosevka".to_owned(),
-            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.ttf")),
+            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.subset.ttf")),
+        );
+        fonts.font_data.insert(
+            "iosevka-bold".to_owned(),
+            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-bold.subset.ttf")),
         );
         fonts
             .families
@@ -93,6 +97,9 @@ impl App {
             .entry(egui::FontFamily::Proportional)
             .or_default()
             .insert(0, "iosevka".to_owned());
+        fonts
+            .families
+            .insert(egui::FontFamily::Name("bold".into()), vec!["iosevka-bold".to_owned()]);
         cc.egui_ctx.set_fonts(fonts);
 
         let (update_sender, update_receiver) = channel();

@@ -32,3 +32,13 @@ impl Widget for BulletPoint {
         response
     }
 }
+
+pub trait UiExt {
+    fn bold(&mut self, text: impl Into<String>);
+}
+
+impl UiExt for egui::Ui {
+    fn bold(&mut self, text: impl Into<String>) {
+        self.label(egui::RichText::new(text).family(egui::FontFamily::Name("bold".into())));
+    }
+}

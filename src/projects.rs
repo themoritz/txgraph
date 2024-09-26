@@ -9,7 +9,7 @@ use egui_extras::{Column, TableBuilder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{app::Update, export, modal, notifications::NotifyExt, style};
+use crate::{app::Update, export, modal, notifications::NotifyExt, style, widgets::UiExt};
 
 pub struct Projects {
     sender: Sender<Msg>,
@@ -201,13 +201,13 @@ impl Projects {
             .sense(egui::Sense::click())
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("Name");
+                    ui.bold("Name");
                 });
                 header.col(|ui| {
-                    ui.strong("Created");
+                    ui.bold("Created");
                 });
                 header.col(|ui| {
-                    ui.strong("Public?");
+                    ui.bold("Public?");
                 });
             })
             .body(|mut body| {
@@ -358,7 +358,7 @@ impl Projects {
         });
 
         ui.separator();
-        ui.strong("Current Project:");
+        ui.bold("Current Project:");
 
         ui.horizontal(|ui| {
             if ui.button("Rename").clicked() {

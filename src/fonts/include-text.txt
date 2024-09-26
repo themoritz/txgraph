@@ -1,0 +1,11 @@
+• bullet point
+⸱ about
+⏴ input
+⏵ output
+✘
+▲
+ℹ
+✔
+◑
+⏵ submenu
+✖ annotations
