@@ -3,7 +3,21 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
-    annotations::Annotations, bitcoin::{Transaction, Txid}, components::{about::About, custom_tx::CustomTx}, export::{self, Project}, flight::Flight, framerate::FrameRate, graph::Graph, layout::Layout, loading::Loading, notifications::Notifications, platform::inner as platform, projects::{Projects, ProjectsHandle}, style::{Theme, ThemeSwitch}, transform::Transform, tx_cache::TxCache
+    annotations::Annotations,
+    bitcoin::{Transaction, Txid},
+    components::{about::About, custom_tx::CustomTx},
+    export::{self, Project},
+    flight::Flight,
+    framerate::FrameRate,
+    graph::Graph,
+    layout::Layout,
+    loading::Loading,
+    notifications::Notifications,
+    platform::inner as platform,
+    projects::{Projects, ProjectsHandle},
+    style::{Theme, ThemeSwitch},
+    transform::Transform,
+    tx_cache::TxCache,
 };
 
 #[derive(Default, serde::Deserialize, serde::Serialize)]
@@ -90,10 +104,17 @@ impl App {
             let projects = Projects::load(&cc.egui_ctx, storage, update_sender.clone());
             (store, projects)
         } else {
-            (AppStore::default(), Projects::new(&cc.egui_ctx, update_sender.clone()))
+            (
+                AppStore::default(),
+                Projects::new(&cc.egui_ctx, update_sender.clone()),
+            )
         };
 
-        update_sender.send(Update::LoadProject { data: projects.current_data() }).unwrap();
+        update_sender
+            .send(Update::LoadProject {
+                data: projects.current_data(),
+            })
+            .unwrap();
 
         platform::add_route_listener(update_sender.clone(), cc.egui_ctx.clone());
 
@@ -133,20 +154,18 @@ impl App {
 
                 let sender = self.update_sender.clone();
 
-                TxCache::get(ctx, txid,
-                    move |tx| {
-                        sender
-                            .send(Update::AddTx {
-                                txid,
-                                tx,
-                                pos: pos.unwrap_or(center),
-                            })
-                            .unwrap();
-                        if pos.is_none() {
-                            sender.send(Update::SelectTx { txid }).unwrap();
-                        }
-                    },
-                );
+                TxCache::get(ctx, txid, move |tx| {
+                    sender
+                        .send(Update::AddTx {
+                            txid,
+                            tx,
+                            pos: pos.unwrap_or(center),
+                        })
+                        .unwrap();
+                    if pos.is_none() {
+                        sender.send(Update::SelectTx { txid }).unwrap();
+                    }
+                });
             }
             Update::SelectTx { txid } => {
                 self.graph.select(txid);
@@ -169,7 +188,6 @@ impl App {
                 self.store.layout.import(&data.layout);
                 self.graph = Graph::default();
 
-
                 let graph_center = if data.transactions.is_empty() {
                     Pos2::ZERO
                 } else {
@@ -184,20 +202,18 @@ impl App {
 
                 let txids: Vec<_> = data.transactions.iter().map(|tx| tx.txid).collect();
                 let sender = self.update_sender.clone();
-                TxCache::get_batch(ctx, &txids,
-                    move |txs| {
-                        for ptx in data.transactions {
-                            let tx = txs.get(&ptx.txid).unwrap();
-                            sender
-                                .send(Update::AddTx {
-                                    txid: ptx.txid,
-                                    tx: tx.clone(),
-                                    pos: ptx.position,
-                                })
-                                .unwrap();
-                        }
-                    },
-                );
+                TxCache::get_batch(ctx, &txids, move |txs| {
+                    for ptx in data.transactions {
+                        let tx = txs.get(&ptx.txid).unwrap();
+                        sender
+                            .send(Update::AddTx {
+                                txid: ptx.txid,
+                                tx: tx.clone(),
+                                pos: ptx.position,
+                            })
+                            .unwrap();
+                    }
+                });
 
                 let screen_center = self
                     .store
@@ -230,66 +246,67 @@ impl eframe::App for App {
 
         let sender2 = sender.clone();
 
-        let frame = Frame::side_top_panel(&ctx.style())
-            .inner_margin(4.0);
+        let frame = Frame::side_top_panel(&ctx.style()).inner_margin(4.0);
 
-        egui::TopBottomPanel::top("top_panel").frame(frame).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                self.store.about.show_toggle(ui);
-                self.projects.show_toggle(ui);
+        egui::TopBottomPanel::top("top_panel")
+            .frame(frame)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    self.store.about.show_toggle(ui);
+                    self.projects.show_toggle(ui);
 
-                ui.separator();
+                    ui.separator();
 
-                ui.menu_button("Tx", |ui| {
-                    ui.menu_button("Load Custom Txid", |ui| {
-                        self.custom_tx.ui(ui, load_tx);
-                    });
+                    ui.menu_button("Tx", |ui| {
+                        ui.menu_button("Load Custom Txid", |ui| {
+                            self.custom_tx.ui(ui, load_tx);
+                        });
 
-                    ui.menu_button("Hallo of Fame", |ui| {
-                        ui.allocate_space(Vec2::new(200., 0.));
+                        ui.menu_button("Hallo of Fame", |ui| {
+                            ui.allocate_space(Vec2::new(200., 0.));
 
-                        for (name, txid) in Txid::INTERESTING_TXS {
-                            if ui.button(name).clicked() {
-                                load_tx(Txid::new(txid).unwrap(), None);
-                                ui.close_menu();
+                            for (name, txid) in Txid::INTERESTING_TXS {
+                                if ui.button(name).clicked() {
+                                    load_tx(Txid::new(txid).unwrap(), None);
+                                    ui.close_menu();
+                                }
                             }
-                        }
 
-                        ui.separator();
-                        ui.label(RichText::new("(from kycp.org)").strong());
+                            ui.separator();
+                            ui.label(RichText::new("(from kycp.org)").strong());
+                        });
                     });
+
+                    ui.menu_button("Reset", |ui| {
+                        if ui.button("Zoom").clicked() {
+                            self.store
+                                .transform
+                                .reset_zoom((self.ui_size / 2.0).to_pos2());
+                            ui.close_menu();
+                        }
+                        if ui.button("Graph").clicked() {
+                            self.graph = Graph::default();
+                            ui.close_menu();
+                        }
+                        if ui.button("Annotations").clicked() {
+                            self.annotations = Annotations::default();
+                            ui.close_menu();
+                        }
+                        if ui.button("All").clicked() {
+                            self.store = AppStore::default();
+                            ui.close_menu();
+                        }
+                    });
+
+                    ui.menu_button("Layout", |ui| {
+                        self.store.layout.ui(ui);
+                    });
+
+                    ui.add(ThemeSwitch::new(&mut self.store.theme));
+
+                    Loading::spinner(ui);
                 });
-
-                ui.menu_button("Reset", |ui| {
-                    if ui.button("Zoom").clicked() {
-                        self.store
-                            .transform
-                            .reset_zoom((self.ui_size / 2.0).to_pos2());
-                        ui.close_menu();
-                    }
-                    if ui.button("Graph").clicked() {
-                        self.graph = Graph::default();
-                        ui.close_menu();
-                    }
-                    if ui.button("Annotations").clicked() {
-                        self.annotations = Annotations::default();
-                        ui.close_menu();
-                    }
-                    if ui.button("All").clicked() {
-                        self.store = AppStore::default();
-                        ui.close_menu();
-                    }
-                });
-
-                ui.menu_button("Layout", |ui| {
-                    self.store.layout.ui(ui);
-                });
-
-                ui.add(ThemeSwitch::new(&mut self.store.theme));
-
-                Loading::spinner(ui);
             });
-        });
 
         let frame = Frame::canvas(&ctx.style())
             .inner_margin(0.0)
@@ -380,7 +397,10 @@ impl eframe::App for App {
 
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 
-        ProjectsHandle::update_project(ctx, export::Project::new(&self.graph, &self.annotations, &self.store.layout));
+        ProjectsHandle::update_project(
+            ctx,
+            export::Project::new(&self.graph, &self.annotations, &self.store.layout),
+        );
         self.projects.show_window(ctx);
 
         self.notifications.show(ctx);
