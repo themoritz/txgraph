@@ -1,5 +1,7 @@
 use egui::{Pos2, Rect, Vec2};
 
+use crate::export::Transform0;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Transform {
     z: f32,
@@ -57,5 +59,21 @@ impl Transform {
     /// Make `pos` map to the center of the screen. `screen_center` is in real coordinates.
     pub fn pan_to(&mut self, pos: Pos2, screen_center: Pos2) {
         self.translate(self.z * (screen_center - pos));
+    }
+
+    pub fn export(&self) -> Transform0 {
+        Transform0 {
+            z: self.z,
+            t_x: self.t_x,
+            t_y: self.t_y,
+        }
+    }
+
+    pub fn import(t0: Transform0) -> Self {
+        Self {
+            z: t0.z,
+            t_x: t0.t_x,
+            t_y: t0.t_y,
+        }
     }
 }

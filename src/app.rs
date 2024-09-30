@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Color32, Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
+use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
     annotations::Annotations,
@@ -193,19 +193,8 @@ impl App {
             Update::LoadWorkspace { data } => {
                 self.annotations = data.annotations;
                 self.store.layout.import(&data.layout);
+                self.store.transform = Transform::import(data.transform);
                 self.graph = Graph::default();
-
-                let graph_center = if data.transactions.is_empty() {
-                    Pos2::ZERO
-                } else {
-                    let num_txs = data.transactions.len() as f32;
-                    (data
-                        .transactions
-                        .iter()
-                        .fold(Vec2::ZERO, |pos, tx| pos + tx.position.to_vec2())
-                        / num_txs)
-                        .to_pos2()
-                };
 
                 let txids: Vec<_> = data.transactions.iter().map(|tx| tx.txid).collect();
                 let sender = self.update_sender.clone();
@@ -221,13 +210,6 @@ impl App {
                             .unwrap();
                     }
                 });
-
-                let screen_center = self
-                    .store
-                    .transform
-                    .pos_from_screen((self.ui_size / 2.0).to_pos2());
-
-                self.store.transform.pan_to(graph_center, screen_center);
             }
         }
     }
@@ -416,7 +398,7 @@ impl eframe::App for App {
 
         WorkspacesHandle::update_workspace(
             ctx,
-            export::Workspace::new(&self.graph, &self.annotations, &self.store.layout),
+            export::Workspace::new(&self.graph, &self.annotations, &self.store.layout, &self.store.transform),
         );
         self.workspaces.show_window(ctx);
 

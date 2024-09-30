@@ -3,22 +3,29 @@ use std::collections::HashMap;
 use egui::Pos2;
 use serde::{Deserialize, Serialize};
 
-use crate::{annotations, bitcoin::Txid, graph::Graph, layout::Layout};
+use crate::{annotations, bitcoin::Txid, graph::Graph, layout::Layout, transform::Transform};
 
 // Public interface
 
-#[derive(Default, PartialEq, Eq, Debug, Clone)]
+#[derive(Default, PartialEq, Debug, Clone)]
 pub struct Workspace {
     pub annotations: annotations::Annotations,
     pub layout: Layout0,
+    pub transform: Transform0,
     pub transactions: Vec<Transaction>,
 }
 
 impl Workspace {
-    pub fn new(graph: &Graph, annotations: &annotations::Annotations, layout: &Layout) -> Self {
+    pub fn new(
+        graph: &Graph,
+        annotations: &annotations::Annotations,
+        layout: &Layout,
+        transform: &Transform,
+    ) -> Self {
         Self {
             annotations: (*annotations).clone(),
             layout: layout.export(),
+            transform: transform.export(),
             transactions: graph.export(),
         }
     }
@@ -30,6 +37,7 @@ impl Serialize for Workspace {
             version: 0,
             annotations: self.annotations.export(),
             layout: self.layout.clone(),
+            transform: self.transform.clone(),
             transactions: self
                 .transactions
                 .iter()
@@ -47,6 +55,7 @@ impl<'de> Deserialize<'de> for Workspace {
             annotations: annotations::Annotations::import(&workspace0.annotations)
                 .map_err(serde::de::Error::custom)?,
             layout: workspace0.layout,
+            transform: workspace0.transform,
             transactions: workspace0
                 .transactions
                 .into_iter()
@@ -103,6 +112,8 @@ struct Workspace0 {
     annotations: Annotations0,
     #[serde(default)]
     layout: Layout0,
+    #[serde(default)]
+    transform: Transform0,
     transactions: Vec<Transaction0>,
 }
 
@@ -128,6 +139,29 @@ pub struct Layout0 {
 impl Default for Layout0 {
     fn default() -> Self {
         Layout::default().export()
+    }
+}
+
+// Public so that conversion code in transform.rs can use it.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Transform0 {
+    pub z: f32,
+    pub t_x: f32,
+    pub t_y: f32,
+}
+
+impl PartialEq for Transform0 {
+    fn eq(&self, other: &Self) -> bool {
+        let eps = 0.00001;
+        (self.z - other.z).abs() < eps
+            && (self.t_x - other.t_x).abs() < eps
+            && (self.t_y - other.t_y).abs() < eps
+    }
+}
+
+impl Default for Transform0 {
+    fn default() -> Self {
+        Transform::default().export()
     }
 }
 
@@ -187,6 +221,11 @@ mod test {
                 "x2": 10000000000000,
                 "y2": 500
             },
+            "transform": {
+                "z": 1.3,
+                "t_x": 30,
+                "t_y": 2.99
+            },
             "transactions": [
                 {
                     "txid": "ea44e97271691990157559d0bdd9959e02790c34db6c006d779e82fa5aee708e",
@@ -223,6 +262,11 @@ mod test {
                 y1: 30,
                 x2: 10000000000000,
                 y2: 500,
+            },
+            transform: Transform0 {
+                z: 1.3,
+                t_x: 30.0,
+                t_y: 2.99,
             },
             transactions: vec![
                 Transaction {
