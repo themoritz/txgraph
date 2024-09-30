@@ -1,7 +1,7 @@
 use egui::Pos2;
 use serde::{Deserialize, Serialize};
 
-use crate::{bitcoin::Txid, widgets::BulletPoint};
+use crate::{bitcoin::Txid, widgets::{BulletPoint, UiExt}};
 
 #[derive(Deserialize, Serialize)]
 pub struct About {
@@ -35,25 +35,26 @@ impl About {
             .show(ctx, |ui| {
                 ui.label("Visualizing Bitcoin's transaction graph.");
 
+                ui.add_space(3.0);
+
                 if ui.button("Load Example Transaction").clicked() {
                     load_tx(Txid::random_interesting(), None);
                 }
 
-                egui::CollapsingHeader::new("Instructions")
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let steps = [
-                            "Load a custom transaction or pick one from the Hall of Fame via the 'Tx' menu.",
-                            "Click on inputs / outputs to expand to the next transaction.",
-                            "Drag/pinch screen to pan/zoom.",
-                            "Drag transactions to adjust layout.",
-                            "Right-click transactions or inputs/outputs.",
-                        ];
+                ui.add_space(3.0);
 
-                        for step in steps {
-                            ui.add(BulletPoint::new(step));
-                        }
-                    });
+                ui.bold("Instructions:");
+                let steps = [
+                    "Load a custom transaction or pick one from the Hall of Fame via the 'Tx' menu.",
+                    "Click on inputs / outputs to expand to the next transaction.",
+                    "Drag/pinch screen to pan/zoom.",
+                    "Drag transactions to adjust layout.",
+                    "Right-click transactions or inputs/outputs.",
+                ];
+
+                for step in steps {
+                    ui.add(BulletPoint::new(step));
+                }
 
                 ui.add_space(3.0);
 

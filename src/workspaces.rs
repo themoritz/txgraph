@@ -11,12 +11,12 @@ use uuid::Uuid;
 
 use crate::{app::Update, export, modal, notifications::NotifyExt, style, widgets::UiExt};
 
-pub struct Projects {
+pub struct Workspaces {
     sender: Sender<Msg>,
     receiver: Arc<Mutex<Receiver<Msg>>>,
     update_sender: Sender<Update>,
-    projects: Vec<Project>,
-    open_project: Uuid,
+    workspaces: Vec<Workspace>,
+    current_workspace: Uuid,
     window_open: bool,
     input_new_name: Option<String>,
     input_import_json: Option<String>,
@@ -27,25 +27,25 @@ pub struct Projects {
 
 /// This is a bit of a hack. Ideally, we'd like this to be part of [AppStore].
 #[derive(Serialize, Deserialize)]
-struct ProjectsStore {
-    open_project: Uuid,
+struct WorkspacesStore {
+    current_workspace: Uuid,
     window_open: bool,
 }
 
-impl Projects {
+impl Workspaces {
     pub fn new(ctx: &Context, update_sender: Sender<Update>) -> Self {
         let (sender, receiver) = channel();
-        ctx.data_mut(|d| d.insert_temp(Id::NULL, ProjectsSender(sender.clone())));
+        ctx.data_mut(|d| d.insert_temp(Id::NULL, WorkspacesSender(sender.clone())));
 
-        let project = Project::new("Unnamed".to_string());
-        let open_project = project.id;
+        let workspace = Workspace::new("Unnamed".to_string());
+        let current_workspace = workspace.id;
 
         Self {
             sender,
             receiver: Arc::new(Mutex::new(receiver)),
             update_sender,
-            projects: vec![project],
-            open_project,
+            workspaces: vec![workspace],
+            current_workspace,
             window_open: false,
             input_new_name: None,
             input_import_json: None,
@@ -57,13 +57,13 @@ impl Projects {
 
     pub fn save(&self, storage: &mut dyn eframe::Storage) {
         // We ideally don't want to break the data in this key, ever:
-        eframe::set_value(storage, "projects", &self.projects);
+        eframe::set_value(storage, "workspaces", &self.workspaces);
 
         eframe::set_value(
             storage,
-            "projects_store",
-            &ProjectsStore {
-                open_project: self.open_project,
+            "workspaces_store",
+            &WorkspacesStore {
+                current_workspace: self.current_workspace,
                 window_open: self.window_open,
             },
         );
@@ -76,72 +76,72 @@ impl Projects {
     ) -> Self {
         let mut result = Self::new(ctx, update_sender);
 
-        if let Some(projects) = eframe::get_value(storage, "projects") {
-            result.projects = projects;
+        if let Some(workspaces) = eframe::get_value(storage, "workspaces") {
+            result.workspaces = workspaces;
         }
 
-        if let Some(projects_store) = eframe::get_value::<ProjectsStore>(storage, "projects_store")
+        if let Some(workspaces_store) = eframe::get_value::<WorkspacesStore>(storage, "workspaces_store")
         {
-            result.window_open = projects_store.window_open;
-            result.open_project = projects_store.open_project;
+            result.window_open = workspaces_store.window_open;
+            result.current_workspace = workspaces_store.current_workspace;
         }
 
-        if result.projects.is_empty() {
-            result.projects = vec![Project::new("Unnamed".to_string())];
+        if result.workspaces.is_empty() {
+            result.workspaces = vec![Workspace::new("Unnamed".to_string())];
         }
 
-        // Make sure `open_project` is actually part of the projects
+        // Make sure `current_workspace` is actually part of the workspaces
         if result
-            .projects
+            .workspaces
             .iter()
-            .find(|p| p.id == result.open_project)
+            .find(|p| p.id == result.current_workspace)
             .is_none()
         {
-            result.open_project = result.projects.first().unwrap().id;
+            result.current_workspace = result.workspaces.first().unwrap().id;
         }
 
         result
     }
 
-    fn with_current(&mut self, f: impl FnOnce(&mut Project)) {
+    fn with_current(&mut self, f: impl FnOnce(&mut Workspace)) {
         let i = self
-            .projects
+            .workspaces
             .iter()
-            .position(|p| p.id == self.open_project)
+            .position(|p| p.id == self.current_workspace)
             .unwrap();
-        f(&mut self.projects[i]);
+        f(&mut self.workspaces[i]);
     }
 
-    fn current(&self) -> &Project {
+    fn current(&self) -> &Workspace {
         &self
-            .projects
+            .workspaces
             .iter()
-            .find(|p| p.id == self.open_project)
+            .find(|p| p.id == self.current_workspace)
             .unwrap()
     }
 
-    pub fn current_data(&self) -> export::Project {
+    pub fn current_data(&self) -> export::Workspace {
         self.current().data.clone()
     }
 
     fn apply_update(&mut self, msg: Msg) {
         match msg {
             Msg::New { name, data } => {
-                let mut p = Project::new(name);
+                let mut p = Workspace::new(name);
                 if let Some(data) = data {
                     p.data = data;
                 }
                 let id = p.id;
-                self.projects.push(p);
+                self.workspaces.push(p);
                 self.apply_update(Msg::Select { id });
             }
             Msg::UpdateData { data } => {
                 self.with_current(|p| p.data = data);
             }
             Msg::Select { id } => {
-                self.open_project = id;
+                self.current_workspace = id;
                 self.update_sender
-                    .send(Update::LoadProject {
+                    .send(Update::LoadWorkspace {
                         data: self.current_data(),
                     })
                     .unwrap();
@@ -149,12 +149,12 @@ impl Projects {
             Msg::Rename { name } => {
                 self.with_current(|p| p.name = name);
             }
-            Msg::TogglePublic => {
-                self.with_current(|p| p.is_public = !p.is_public);
-            }
+            // Msg::TogglePublic => {
+            //     self.with_current(|p| p.is_public = !p.is_public);
+            // }
             Msg::Delete => {
-                self.projects.retain(|p| p.id != self.open_project);
-                if let Some(p) = self.projects.first() {
+                self.workspaces.retain(|p| p.id != self.current_workspace);
+                if let Some(p) = self.workspaces.first() {
                     self.apply_update(Msg::Select { id: p.id });
                 } else {
                     self.apply_update(Msg::New {
@@ -167,14 +167,14 @@ impl Projects {
     }
 
     pub fn show_toggle(&mut self, ui: &mut egui::Ui) {
-        if ui.selectable_label(self.window_open, "Projects").clicked() {
+        if ui.selectable_label(self.window_open, "Workspaces").clicked() {
             self.window_open = !self.window_open;
         }
     }
 
     pub fn show_window(&mut self, ctx: &Context) {
         let mut open = self.window_open;
-        egui::Window::new("Projects")
+        egui::Window::new("Workspaces")
             .open(&mut open)
             .show(ctx, |ui| self.show_ui(ui));
         self.window_open = open;
@@ -197,7 +197,7 @@ impl Projects {
                     .resizable(false),
             )
             .column(Column::auto())
-            .column(Column::auto().at_least(10.0))
+            // .column(Column::auto().at_least(10.0))
             .sense(egui::Sense::click())
             .header(20.0, |mut header| {
                 header.col(|ui| {
@@ -206,22 +206,22 @@ impl Projects {
                 header.col(|ui| {
                     ui.bold("Created");
                 });
-                header.col(|ui| {
-                    ui.bold("Public?");
-                });
+                // header.col(|ui| {
+                //     ui.bold("Public");
+                // });
             })
             .body(|mut body| {
-                for project in &self.projects {
+                for workspace in &self.workspaces {
                     body.row(20.0, |mut row| {
-                        row.set_selected(project.id == self.open_project);
+                        row.set_selected(workspace.id == self.current_workspace);
 
                         row.col(|ui| {
-                            ui.add(Label::new(project.name.clone()).selectable(false));
+                            ui.add(Label::new(workspace.name.clone()).selectable(false));
                         });
                         row.col(|ui| {
                             ui.add(
                                 Label::new(
-                                    project
+                                    workspace
                                         .created_at
                                         .with_timezone(&Local)
                                         .format("%Y-%m-%d %H:%M")
@@ -230,16 +230,17 @@ impl Projects {
                                 .selectable(false),
                             );
                         });
-                        row.col(|ui| {
-                            if project.is_public {
-                                ui.add(Label::new("✔").selectable(false));
-                            } else {
-                                ui.add(Label::new("").selectable(false));
-                            }
-                        });
+                        // row.col(|ui| {
+                        //     if workspace.is_public {
+                        //         ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
+                        //             ui.add_space(3.0);
+                        //             ui.add(Label::new("✔").selectable(false));
+                        //         });
+                        //     }
+                        // });
 
                         if row.response().clicked() {
-                            self.sender.send(Msg::Select { id: project.id }).unwrap();
+                            self.sender.send(Msg::Select { id: workspace.id }).unwrap();
                         }
                     });
                 }
@@ -248,16 +249,16 @@ impl Projects {
         ui.add_space(3.0);
 
         ui.horizontal(|ui| {
-            if ui.button("New Project").clicked() {
+            if ui.button("New Workspace").clicked() {
                 self.input_new_name = Some("".to_string());
                 self.request_focus = true;
             }
             if let Some(name) = &self.input_new_name {
                 let old_name = name.clone();
                 let mut new_name = name.clone();
-                modal::show(&ui.ctx(), "New Project", |ui| {
+                modal::show(&ui.ctx(), "New Workspace", |ui| {
                     let resp =
-                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Workspace name..."));
                     if self.request_focus {
                         resp.request_focus();
                         self.request_focus = false;
@@ -295,7 +296,7 @@ impl Projects {
             if let Some(json) = &self.input_import_json {
                 let old_json = json.clone();
                 let mut new_json = json.clone();
-                modal::show(&ui.ctx(), "Import Project", |ui| {
+                modal::show(&ui.ctx(), "Import Workspace", |ui| {
                     let theme = egui_extras::syntax_highlighting::CodeTheme::from_style(ui.style());
 
                     let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
@@ -358,7 +359,7 @@ impl Projects {
         });
 
         ui.separator();
-        ui.bold("Current Project:");
+        ui.bold("Current Workspace:");
 
         ui.horizontal(|ui| {
             if ui.button("Rename").clicked() {
@@ -368,9 +369,9 @@ impl Projects {
             if let Some(name) = &self.input_rename {
                 let old_name = name.clone();
                 let mut new_name = name.clone();
-                modal::show(&ui.ctx(), "Rename Project", |ui| {
+                modal::show(&ui.ctx(), "Rename Workspace", |ui| {
                     let resp =
-                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Project name..."));
+                        ui.add(TextEdit::singleline(&mut new_name).hint_text("Workspace name..."));
                     if self.request_focus {
                         resp.request_focus();
                         self.request_focus = false;
@@ -404,8 +405,8 @@ impl Projects {
                 self.input_confirm_delete = true;
             }
             if self.input_confirm_delete {
-                modal::show(&ui.ctx(), "Delete Project", |ui| {
-                    ui.label("Are you sure you want to delete the current project?");
+                modal::show(&ui.ctx(), "Delete Workspace", |ui| {
+                    ui.label("Are you sure you want to delete the current workspace?");
 
                     ui.add_space(3.0);
 
@@ -421,16 +422,16 @@ impl Projects {
                 });
             }
 
-            let mut is_public = self.current().is_public;
-            if ui.checkbox(&mut is_public, "Public").clicked() {
-                self.sender.send(Msg::TogglePublic).unwrap();
-            }
+            // let mut is_public = self.current().is_public;
+            // if ui.checkbox(&mut is_public, "Public").clicked() {
+            //     self.sender.send(Msg::TogglePublic).unwrap();
+            // }
 
             if ui.button("Export JSON").clicked() {
                 let current = self.current();
                 ui.output_mut(|o| o.copied_text = serde_json::to_string(&current.data).unwrap());
                 ui.ctx()
-                    .notify_success(format!("Exported project `{}` to clipboard.", current.name));
+                    .notify_success(format!("Exported workspace `{}` to clipboard.", current.name));
             }
         });
     }
@@ -439,10 +440,10 @@ impl Projects {
 enum Msg {
     New {
         name: String,
-        data: Option<export::Project>,
+        data: Option<export::Workspace>,
     },
     UpdateData {
-        data: export::Project,
+        data: export::Workspace,
     },
     Select {
         id: Uuid,
@@ -450,26 +451,26 @@ enum Msg {
     Rename {
         name: String,
     },
-    TogglePublic,
+    // TogglePublic,
     Delete,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-struct Project {
+struct Workspace {
     is_owned: bool,
     is_public: bool,
-    data: export::Project,
+    data: export::Workspace,
     id: Uuid,
     name: String,
     created_at: DateTime<Utc>,
 }
 
-impl Project {
+impl Workspace {
     fn new(name: String) -> Self {
-        Project {
+        Workspace {
             is_owned: true,
             is_public: false,
-            data: export::Project::default(),
+            data: export::Workspace::default(),
             id: Uuid::now_v7(),
             name,
             created_at: Utc::now(),
@@ -478,13 +479,13 @@ impl Project {
 }
 
 #[derive(Clone)]
-struct ProjectsSender(Sender<Msg>);
+struct WorkspacesSender(Sender<Msg>);
 
-pub struct ProjectsHandle;
+pub struct WorkspacesHandle;
 
-impl ProjectsHandle {
-    pub fn update_project(ctx: &Context, data: export::Project) {
-        if let Some(ProjectsSender(sender)) = ctx.data(|d| d.get_temp(Id::NULL)) {
+impl WorkspacesHandle {
+    pub fn update_workspace(ctx: &Context, data: export::Workspace) {
+        if let Some(WorkspacesSender(sender)) = ctx.data(|d| d.get_temp(Id::NULL)) {
             sender.send(Msg::UpdateData { data }).unwrap();
         }
     }

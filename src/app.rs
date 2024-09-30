@@ -6,7 +6,7 @@ use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
     components::{about::About, custom_tx::CustomTx},
-    export::{self, Project},
+    export::{self, Workspace},
     flight::Flight,
     framerate::FrameRate,
     graph::Graph,
@@ -14,7 +14,7 @@ use crate::{
     loading::Loading,
     notifications::Notifications,
     platform::inner as platform,
-    projects::{Projects, ProjectsHandle},
+    workspaces::{Workspaces, WorkspacesHandle},
     style::{Theme, ThemeSwitch},
     transform::Transform,
     tx_cache::TxCache,
@@ -45,8 +45,8 @@ pub enum Update {
     RemoveTx {
         txid: Txid,
     },
-    LoadProject {
-        data: Project,
+    LoadWorkspace {
+        data: Workspace,
     },
 }
 
@@ -65,7 +65,7 @@ pub struct App {
     framerate: FrameRate,
     about_rect: Option<egui::Rect>,
     notifications: Notifications,
-    projects: Projects,
+    workspaces: Workspaces,
 }
 
 impl App {
@@ -106,20 +106,20 @@ impl App {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        let (store, projects) = if let Some(storage) = cc.storage {
+        let (store, workspaces) = if let Some(storage) = cc.storage {
             let store = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-            let projects = Projects::load(&cc.egui_ctx, storage, update_sender.clone());
-            (store, projects)
+            let workspaces = Workspaces::load(&cc.egui_ctx, storage, update_sender.clone());
+            (store, workspaces)
         } else {
             (
                 AppStore::default(),
-                Projects::new(&cc.egui_ctx, update_sender.clone()),
+                Workspaces::new(&cc.egui_ctx, update_sender.clone()),
             )
         };
 
         update_sender
-            .send(Update::LoadProject {
-                data: projects.current_data(),
+            .send(Update::LoadWorkspace {
+                data: workspaces.current_data(),
             })
             .unwrap();
 
@@ -139,7 +139,7 @@ impl App {
             framerate: FrameRate::default(),
             about_rect: None,
             notifications: Notifications::new(&cc.egui_ctx),
-            projects,
+            workspaces,
         }
     }
 
@@ -190,7 +190,7 @@ impl App {
             Update::RemoveTx { txid } => {
                 self.graph.remove_tx(txid);
             }
-            Update::LoadProject { data } => {
+            Update::LoadWorkspace { data } => {
                 self.annotations = data.annotations;
                 self.store.layout.import(&data.layout);
                 self.graph = Graph::default();
@@ -236,7 +236,7 @@ impl App {
 impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, &self.store);
-        self.projects.save(storage);
+        self.workspaces.save(storage);
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -260,7 +260,7 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     self.store.about.show_toggle(ui);
-                    self.projects.show_toggle(ui);
+                    self.workspaces.show_toggle(ui);
 
                     ui.separator();
 
@@ -404,11 +404,11 @@ impl eframe::App for App {
 
         self.about_rect = self.store.about.show_window(ctx, load_tx);
 
-        ProjectsHandle::update_project(
+        WorkspacesHandle::update_workspace(
             ctx,
-            export::Project::new(&self.graph, &self.annotations, &self.store.layout),
+            export::Workspace::new(&self.graph, &self.annotations, &self.store.layout),
         );
-        self.projects.show_window(ctx);
+        self.workspaces.show_window(ctx);
 
         self.notifications.show(ctx);
     }

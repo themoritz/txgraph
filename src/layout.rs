@@ -1,7 +1,7 @@
-use egui::{Grid, RichText};
+use egui::Grid;
 use serde::{Deserialize, Serialize};
 
-use crate::{bitcoin::Sats, export};
+use crate::{bitcoin::Sats, export, widgets::UiExt};
 
 #[derive(Deserialize, Serialize, Default)]
 #[serde(default)]
@@ -22,7 +22,7 @@ impl Layout {
         ui.separator();
         self.scale.ui(ui);
         ui.separator();
-        ui.label(RichText::new("Misc:").strong());
+        ui.bold("Misc:");
         ui.checkbox(&mut self.show_arrows, "Show arrows on edges");
     }
 
@@ -67,7 +67,7 @@ impl Default for ForceParams {
 
 impl ForceParams {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Graph layout params:").strong());
+        ui.bold("Graph layout params:");
 
         Grid::new("Layout").num_columns(2).show(ui, |ui| {
             ui.label("Layout Algorithm:");
@@ -120,7 +120,7 @@ impl Scale {
 
     #[allow(clippy::inconsistent_digit_grouping)]
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Display size of transactions:").strong());
+        ui.bold("Display size of transactions:");
 
         Grid::new("Scale").num_columns(2).show(ui, |ui| {
             ui.label("From:")

@@ -8,13 +8,13 @@ use crate::{annotations, bitcoin::Txid, graph::Graph, layout::Layout};
 // Public interface
 
 #[derive(Default, PartialEq, Eq, Debug, Clone)]
-pub struct Project {
+pub struct Workspace {
     pub annotations: annotations::Annotations,
     pub layout: Layout0,
     pub transactions: Vec<Transaction>,
 }
 
-impl Project {
+impl Workspace {
     pub fn new(graph: &Graph, annotations: &annotations::Annotations, layout: &Layout) -> Self {
         Self {
             annotations: (*annotations).clone(),
@@ -24,9 +24,9 @@ impl Project {
     }
 }
 
-impl Serialize for Project {
+impl Serialize for Workspace {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Project0 {
+        Workspace0 {
             version: 0,
             annotations: self.annotations.export(),
             layout: self.layout.clone(),
@@ -40,14 +40,14 @@ impl Serialize for Project {
     }
 }
 
-impl<'de> Deserialize<'de> for Project {
+impl<'de> Deserialize<'de> for Workspace {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let project0 = Project0::deserialize(deserializer)?;
+        let workspace0 = Workspace0::deserialize(deserializer)?;
         Ok(Self {
-            annotations: annotations::Annotations::import(&project0.annotations)
+            annotations: annotations::Annotations::import(&workspace0.annotations)
                 .map_err(serde::de::Error::custom)?,
-            layout: project0.layout,
-            transactions: project0
+            layout: workspace0.layout,
+            transactions: workspace0
                 .transactions
                 .into_iter()
                 .map(Transaction::from_transaction0)
@@ -82,7 +82,7 @@ impl Transaction {
     }
 }
 
-// Version 0 of the project file format
+// Version 0 of the workspace file format
 
 fn validate_version<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
     let version = u32::deserialize(deserializer)?;
@@ -97,7 +97,7 @@ fn validate_version<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result
 }
 
 #[derive(Serialize, Deserialize)]
-struct Project0 {
+struct Workspace0 {
     #[serde(deserialize_with = "validate_version")]
     version: u32,
     annotations: Annotations0,
@@ -163,7 +163,7 @@ mod test {
 
     use super::*;
 
-    const PROJECT_FIXTURE_0: &str = r#"
+    const WORKSPACE_FIXTURE_0: &str = r#"
         {
             "version": 0,
             "annotations": {
@@ -206,7 +206,7 @@ mod test {
         }
     "#;
 
-    fn project_expected() -> Project {
+    fn workspace_expected() -> Workspace {
         let txid =
             Txid::new("f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16").unwrap();
         let mut a = Annotations::default();
@@ -215,7 +215,7 @@ mod test {
         a.set_coin_color((txid, 0), Color32::from_rgb(255, 0, 255));
         a.set_coin_label((txid, 0), "Output".to_string());
 
-        Project {
+        Workspace {
             annotations: a,
             layout: Layout0 {
                 scale: 50,
@@ -241,14 +241,14 @@ mod test {
     }
 
     #[test]
-    fn test_project_fixture_0() {
-        let actual = serde_json::from_str(&PROJECT_FIXTURE_0).unwrap();
-        assert_eq!(project_expected(), actual);
+    fn test_workspace_fixture_0() {
+        let actual = serde_json::from_str(&WORKSPACE_FIXTURE_0).unwrap();
+        assert_eq!(workspace_expected(), actual);
     }
 
     #[test]
-    fn test_project_roundtrip() {
-        let expected = project_expected();
+    fn test_workspace_roundtrip() {
+        let expected = workspace_expected();
         let string = serde_json::to_string(&expected).unwrap();
         let actual = serde_json::from_str(&string).unwrap();
         assert_eq!(expected, actual);
