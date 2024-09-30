@@ -48,3 +48,8 @@ pyftsubset iosevka-custom-{regular|bold}.ttf --unicodes-file=include-unicodes.tx
 ```
 
 On macOS, `pyftsubset` can be installed using `brew install fonttools`.
+
+### Testnet
+
+If you want to develop against Bitoin Testnet, set the environment variable `TESTNET=1` (e.g. in the `.envrc` file).
+You may want to `touch build.rs` to trigger a complete rebuild.

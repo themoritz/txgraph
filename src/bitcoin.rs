@@ -36,6 +36,7 @@ impl Txid {
         Self::new(txid).unwrap()
     }
 
+    #[cfg(not(testnet))]
     pub const INTERESTING_TXS: [(&'static str, &'static str); 18] = [
         (
             "First Bitcoin",
@@ -108,6 +109,18 @@ impl Txid {
         (
             "Taproot",
             "83c8e0289fecf93b5a284705396f5a652d9886cbd26236b0d647655ad8a37d82",
+        ),
+    ];
+
+    #[cfg(testnet)]
+    pub const INTERESTING_TXS: [(&'static str, &'static str); 2] = [
+        (
+            "Dummy Small",
+            "e9a9c99fd5d9a9ca34088eee49d4b8e8212639cc7fb91848d2159356c4abab83",
+        ),
+        (
+            "Dummy Big",
+            "ffa74ddcea623b2cd607d35c5311effa911236c6f95116e5639e0c514ac91983",
         ),
     ];
 }

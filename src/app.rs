@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
-use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
+use egui::{Color32, Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
     annotations::Annotations,
@@ -333,6 +333,16 @@ impl eframe::App for App {
                 egui::Layout::right_to_left(egui::Align::Min),
                 None,
             ));
+
+            #[cfg(testnet)]
+            ui.child_ui(
+                Rect::from_min_max(
+                    response.rect.left_bottom() + Vec2::new(5., -20.),
+                    response.rect.left_bottom() + Vec2::new(30., -25.),
+                ),
+                egui::Layout::left_to_right(egui::Align::Max),
+                None,
+            ).colored_label(egui::Color32::LIGHT_RED, "TESTNET");
 
             ui.set_clip_rect(response.rect);
 
