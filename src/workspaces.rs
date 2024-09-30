@@ -80,7 +80,8 @@ impl Workspaces {
             result.workspaces = workspaces;
         }
 
-        if let Some(workspaces_store) = eframe::get_value::<WorkspacesStore>(storage, "workspaces_store")
+        if let Some(workspaces_store) =
+            eframe::get_value::<WorkspacesStore>(storage, "workspaces_store")
         {
             result.window_open = workspaces_store.window_open;
             result.current_workspace = workspaces_store.current_workspace;
@@ -167,7 +168,10 @@ impl Workspaces {
     }
 
     pub fn show_toggle(&mut self, ui: &mut egui::Ui) {
-        if ui.selectable_label(self.window_open, "Workspaces").clicked() {
+        if ui
+            .selectable_label(self.window_open, "Workspaces")
+            .clicked()
+        {
             self.window_open = !self.window_open;
         }
     }
@@ -430,9 +434,18 @@ impl Workspaces {
             if ui.button("Export JSON").clicked() {
                 let current = self.current();
                 ui.output_mut(|o| o.copied_text = serde_json::to_string(&current.data).unwrap());
-                ui.ctx()
-                    .notify_success(format!("Exported workspace `{}` to clipboard.", current.name));
+                ui.ctx().notify_success(format!(
+                    "Exported workspace `{}` to clipboard.",
+                    current.name
+                ));
             }
+        });
+
+        ui.add_space(3.0);
+
+        ui.horizontal_wrapped(|ui| {
+            ui.bold("Note:");
+            ui.label("This app is still in development and we don't guarantee data is stored in the Browser. If you want to save your workspaces, export them to JSON.");
         });
     }
 }
