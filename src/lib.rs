@@ -15,6 +15,7 @@ mod loading;
 mod modal;
 mod notifications;
 mod platform;
+mod db;
 mod style;
 mod transform;
 mod tx_cache;

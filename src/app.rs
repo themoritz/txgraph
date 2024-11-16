@@ -1,11 +1,13 @@
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 
+use datalog::{add, query};
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
 use crate::{
     annotations::Annotations,
     bitcoin::{Transaction, Txid},
     components::{about::About, custom_tx::CustomTx},
+    db::DbExt,
     export::{self, Workspace},
     flight::Flight,
     framerate::FrameRate,
@@ -14,10 +16,10 @@ use crate::{
     loading::Loading,
     notifications::Notifications,
     platform::inner as platform,
-    workspaces::{Workspaces, WorkspacesHandle},
     style::{Theme, ThemeSwitch},
     transform::Transform,
     tx_cache::TxCache,
+    workspaces::{Workspaces, WorkspacesHandle},
 };
 
 #[derive(Default, serde::Deserialize, serde::Serialize)]
@@ -78,7 +80,9 @@ impl App {
         );
         fonts.font_data.insert(
             "iosevka".to_owned(),
-            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.subset.ttf")),
+            egui::FontData::from_static(include_bytes!(
+                "./fonts/iosevka-custom-regular.subset.ttf"
+            )),
         );
         fonts.font_data.insert(
             "iosevka-bold".to_owned(),
@@ -97,9 +101,10 @@ impl App {
             .entry(egui::FontFamily::Proportional)
             .or_default()
             .insert(0, "iosevka".to_owned());
-        fonts
-            .families
-            .insert(egui::FontFamily::Name("bold".into()), vec!["iosevka-bold".to_owned()]);
+        fonts.families.insert(
+            egui::FontFamily::Name("bold".into()),
+            vec!["iosevka-bold".to_owned()],
+        );
         cc.egui_ctx.set_fonts(fonts);
 
         let (update_sender, update_receiver) = channel();
@@ -293,6 +298,22 @@ impl eframe::App for App {
 
                     ui.add(ThemeSwitch::new(&mut self.store.theme));
 
+                    if ui.button("New").clicked() {
+                        ctx.with_db(|db| db.new_entity(add!({"name": "A"})).unwrap());
+                    }
+
+                    let news = ctx.with_db(|db| {
+                        db.query(query! {
+                            find: [?e, ?name],
+                            where: [(?e, "name" = ?name)]
+                        })
+                        .unwrap()
+                    });
+
+                    for new in news {
+                        ui.label(new[1].to_string());
+                    }
+
                     Loading::spinner(ui);
                 });
             });
@@ -324,7 +345,8 @@ impl eframe::App for App {
                 ),
                 egui::Layout::left_to_right(egui::Align::Max),
                 None,
-            ).colored_label(egui::Color32::LIGHT_RED, "TESTNET");
+            )
+            .colored_label(egui::Color32::LIGHT_RED, "TESTNET");
 
             ui.set_clip_rect(response.rect);
 
@@ -398,7 +420,12 @@ impl eframe::App for App {
 
         WorkspacesHandle::update_workspace(
             ctx,
-            export::Workspace::new(&self.graph, &self.annotations, &self.store.layout, &self.store.transform),
+            export::Workspace::new(
+                &self.graph,
+                &self.annotations,
+                &self.store.layout,
+                &self.store.transform,
+            ),
         );
         self.workspaces.show_window(ctx);
 
