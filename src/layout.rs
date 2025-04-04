@@ -40,7 +40,7 @@ impl Layout {
             x1: self.scale.x1,
             y1: self.scale.y1,
             x2: self.scale.x2,
-            y2: self.scale.y2
+            y2: self.scale.y2,
         }
     }
 }
@@ -112,7 +112,8 @@ impl Default for Scale {
 
 impl Scale {
     pub fn apply(&self, x: u64) -> f64 {
-        let b = -(self.y2 as f64 / self.y1 as f64).ln() / ((self.x1 as f64).ln() - (self.x2 as f64).ln());
+        let b = -(self.y2 as f64 / self.y1 as f64).ln()
+            / ((self.x1 as f64).ln() - (self.x2 as f64).ln());
         let a = self.y1 as f64 / (self.x1 as f64).powf(b);
 
         (a * (x as f64).powf(b)).max(10.0)

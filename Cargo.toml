@@ -10,24 +10,23 @@ rust-version = "1.76"
 #
 # Then run like this:
 # $ cargo run --release --features profiling
-profiling = ["puffin", "puffin_http", "eframe/puffin"]
+profiling = ["puffin", "puffin_http"]
 
 [dependencies]
-egui = "0.28.1"
-egui_extras = { version = "0.28.1", default-features = false, features = ["serde"] }
-eframe = { version = "0.28.1", default-features = false, features = ["glow", "persistence"] }
-ehttp = "0.5.0"
+egui = "0.31"
+egui_extras = { version = "0.31", default-features = false, features = ["serde"] }
+eframe = { version = "0.31", default-features = false, features = ["glow", "persistence"] }
+ehttp = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
-hex = "0.4.3"
-chrono = { version = "0.4.24", features = ["serde"] }
-reunion = "0.1.14"
-dark-light = "1.1.1"
-base64 = "0.13.1"
+hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+dark-light = "2"
+base64 = "0.22"
 log = "0.4"
-lru = "0.12.4"
-flume = "0.11.0"
-uuid = { version = "1.10.0", features = ["js", "v7", "serde"] }
+lru = "0.13"
+flume = "0.11"
+uuid = { version = "1.16", features = ["js", "v7", "serde"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -1,7 +1,10 @@
 use egui::Pos2;
 use serde::{Deserialize, Serialize};
 
-use crate::{bitcoin::Txid, widgets::{BulletPoint, UiExt}};
+use crate::{
+    bitcoin::Txid,
+    widgets::{BulletPoint, UiExt},
+};
 
 #[derive(Deserialize, Serialize)]
 pub struct About {

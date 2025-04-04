@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fmt::Write, sync::mpsc::Sender};
 
 use egui::{
-    ahash::HashSet, text::LayoutJob, Align, Color32, CursorIcon, FontId, Mesh, Pos2, Rect,
-    RichText, Rounding, Sense, Stroke, TextFormat, Vec2,
+    ahash::HashSet, text::LayoutJob, Align, Color32, CornerRadius, CursorIcon, FontId, Mesh, Pos2,
+    Rect, RichText, Sense, Stroke, TextFormat, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -244,7 +244,7 @@ impl Graph {
                 dragged: false,
                 size: 0.0,
                 tx_value: tx.amount(),
-                tx_timestamp: chrono::NaiveDateTime::from_timestamp_opt(tx.timestamp, 0)
+                tx_timestamp: chrono::DateTime::from_timestamp(tx.timestamp, 0)
                     .unwrap()
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
@@ -375,12 +375,12 @@ impl Graph {
                 });
             response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
-            if response.clicked {
-                ui.output_mut(|o| {
-                    o.copied_text = self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
+            if response.clicked() {
+                ui.ctx().copy_text(
+                    self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
                         .address
-                        .clone()
-                });
+                        .clone(),
+                );
             }
         }
 
@@ -400,9 +400,10 @@ impl Graph {
             if Some(*txid) == self.selected_node {
                 painter.rect(
                     outer_rect.expand(style.selected_stroke_width / 2.0),
-                    Rounding::ZERO,
+                    CornerRadius::ZERO,
                     Color32::TRANSPARENT,
                     style.selected_tx_stroke(),
+                    egui::StrokeKind::Middle,
                 );
             }
 
@@ -438,14 +439,13 @@ impl Graph {
                 ui.menu_button("Annotate", |ui| annotations.tx_menu(*txid, ui));
                 ui.menu_button("Export to Clipboard", |ui| {
                     if ui.button("Beancount").clicked() {
-                        ui.ctx().output_mut(|o| {
-                            o.copied_text = node.export_beancount(txid, label.clone())
-                        });
+                        ui.ctx()
+                            .copy_text(node.export_beancount(txid, label.clone()));
                         ui.close_menu();
                     }
                 });
                 if ui.button("Copy Txid").clicked() {
-                    ui.output_mut(|o| o.copied_text = txid.hex_string());
+                    ui.ctx().copy_text(txid.hex_string());
                     ui.close_menu();
                 }
                 if ui.button("Remove").clicked() {
@@ -478,12 +478,13 @@ impl Graph {
 
             painter.rect(
                 rect,
-                Rounding::ZERO,
+                CornerRadius::ZERO,
                 annotations
                     .tx_color(*txid)
                     .unwrap_or(style.tx_bg)
                     .gamma_multiply(0.4),
                 style.tx_stroke(),
+                egui::StrokeKind::Middle,
             );
 
             let tx_painter = painter.with_clip_rect(rect);
@@ -547,12 +548,13 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::ZERO,
+                    CornerRadius::ZERO,
                     annotations
                         .coin_color(coin)
                         .unwrap_or(style.io_bg)
                         .gamma_multiply(0.4),
                     Stroke::NONE,
+                    egui::StrokeKind::Middle,
                 );
 
                 if Loading::is_txid_loading(ui, &input.funding_txid) {
@@ -566,9 +568,10 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::ZERO,
+                    CornerRadius::ZERO,
                     Color32::TRANSPARENT,
                     style.io_stroke(&response),
+                    egui::StrokeKind::Middle,
                 );
             }
 
@@ -664,7 +667,7 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::ZERO,
+                    CornerRadius::ZERO,
                     match output.output_type {
                         OutputType::Utxo {
                             address: _,
@@ -684,6 +687,7 @@ impl Graph {
                         OutputType::Fees => style.fees_fill(),
                     },
                     Stroke::NONE,
+                    egui::StrokeKind::Middle,
                 );
 
                 if let OutputType::Spent { spending_txid, .. } = output.output_type {
@@ -699,7 +703,7 @@ impl Graph {
 
                 painter.rect(
                     screen_rect,
-                    Rounding::ZERO,
+                    CornerRadius::ZERO,
                     Color32::TRANSPARENT,
                     match output.output_type {
                         OutputType::Spent {
@@ -709,6 +713,7 @@ impl Graph {
                         } => style.io_stroke(&response),
                         _ => style.tx_stroke(),
                     },
+                    egui::StrokeKind::Middle,
                 );
             }
         }
@@ -741,9 +746,8 @@ impl Graph {
                 }
 
                 let diff = other_rect.center() - rect.center();
-                let force = -scale2 / spacing
-                    * kernel(tx_repulsion_radius, spacing)
-                    * diff.normalized();
+                let force =
+                    -scale2 / spacing * kernel(tx_repulsion_radius, spacing) * diff.normalized();
 
                 self.nodes.get_mut(txid).unwrap().velocity += force * layout.force_params.dt;
             }

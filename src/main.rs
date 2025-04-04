@@ -25,14 +25,27 @@ fn main() -> eframe::Result<()> {
 #[cfg(target_arch = "wasm32")]
 fn main() {
     // Redirect `log` message to `console.log` and friends:
+
+    use wasm_bindgen::JsCast;
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
+        let document = web_sys::window()
+            .expect("No window")
+            .document()
+            .expect("No document");
+
+        let canvas = document
+            .get_element_by_id("the_canvas_id")
+            .expect("Failed to find the_canvas_id")
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("the_canvas_id was not a HtmlCanvasElement");
+
         let start_result = eframe::WebRunner::new()
             .start(
-                "the_canvas_id",
+                canvas,
                 web_options,
                 Box::new(|cc| Ok(Box::new(txgraph::App::new(cc)))),
             )

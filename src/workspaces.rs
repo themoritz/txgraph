@@ -306,6 +306,7 @@ impl Workspaces {
                     let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
                         let mut layout_job = egui_extras::syntax_highlighting::highlight(
                             ui.ctx(),
+                            ui.style(),
                             &theme,
                             string,
                             "toml",
@@ -433,7 +434,8 @@ impl Workspaces {
 
             if ui.button("Export JSON").clicked() {
                 let current = self.current();
-                ui.output_mut(|o| o.copied_text = serde_json::to_string(&current.data).unwrap());
+                ui.ctx()
+                    .copy_text(serde_json::to_string(&current.data).unwrap());
                 ui.ctx().notify_success(format!(
                     "Exported workspace `{}` to clipboard.",
                     current.name

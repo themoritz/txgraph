@@ -109,7 +109,7 @@ impl Theme {
         match self {
             Theme::Light => false,
             Theme::Dark => true,
-            Theme::System => dark_light::detect() == dark_light::Mode::Dark,
+            Theme::System => matches!(dark_light::detect(), Ok(dark_light::Mode::Dark)),
         }
     }
 }

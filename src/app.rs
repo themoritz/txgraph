@@ -1,4 +1,7 @@
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::{
+    mpsc::{channel, Receiver, Sender, TryRecvError},
+    Arc,
+};
 
 use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
 
@@ -14,10 +17,10 @@ use crate::{
     loading::Loading,
     notifications::Notifications,
     platform::inner as platform,
-    workspaces::{Workspaces, WorkspacesHandle},
     style::{Theme, ThemeSwitch},
     transform::Transform,
     tx_cache::TxCache,
+    workspaces::{Workspaces, WorkspacesHandle},
 };
 
 #[derive(Default, serde::Deserialize, serde::Serialize)]
@@ -74,15 +77,21 @@ impl App {
         let mut fonts = egui::FontDefinitions::empty();
         fonts.font_data.insert(
             "btc".to_owned(),
-            egui::FontData::from_static(include_bytes!("./fonts/btc.ttf")),
+            Arc::new(egui::FontData::from_static(include_bytes!(
+                "./fonts/btc.ttf"
+            ))),
         );
         fonts.font_data.insert(
             "iosevka".to_owned(),
-            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-regular.subset.ttf")),
+            Arc::new(egui::FontData::from_static(include_bytes!(
+                "./fonts/iosevka-custom-regular.subset.ttf"
+            ))),
         );
         fonts.font_data.insert(
             "iosevka-bold".to_owned(),
-            egui::FontData::from_static(include_bytes!("./fonts/iosevka-custom-bold.subset.ttf")),
+            Arc::new(egui::FontData::from_static(include_bytes!(
+                "./fonts/iosevka-custom-bold.subset.ttf"
+            ))),
         );
         fonts
             .families
@@ -97,9 +106,10 @@ impl App {
             .entry(egui::FontFamily::Proportional)
             .or_default()
             .insert(0, "iosevka".to_owned());
-        fonts
-            .families
-            .insert(egui::FontFamily::Name("bold".into()), vec!["iosevka-bold".to_owned()]);
+        fonts.families.insert(
+            egui::FontFamily::Name("bold".into()),
+            vec!["iosevka-bold".to_owned()],
+        );
         cc.egui_ctx.set_fonts(fonts);
 
         let (update_sender, update_receiver) = channel();
@@ -324,7 +334,8 @@ impl eframe::App for App {
                 ),
                 egui::Layout::left_to_right(egui::Align::Max),
                 None,
-            ).colored_label(egui::Color32::LIGHT_RED, "TESTNET");
+            )
+            .colored_label(egui::Color32::LIGHT_RED, "TESTNET");
 
             ui.set_clip_rect(response.rect);
 
@@ -398,7 +409,12 @@ impl eframe::App for App {
 
         WorkspacesHandle::update_workspace(
             ctx,
-            export::Workspace::new(&self.graph, &self.annotations, &self.store.layout, &self.store.transform),
+            export::Workspace::new(
+                &self.graph,
+                &self.annotations,
+                &self.store.layout,
+                &self.store.transform,
+            ),
         );
         self.workspaces.show_window(ctx);
 
