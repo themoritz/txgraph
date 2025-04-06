@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui::{Color32, FontId, Response, Stroke, Widget};
+use egui::{Color32, FontId, Response, Stroke, ThemePreference};
 
 pub struct Style {
     pub tx_width: f32,
@@ -96,70 +96,30 @@ pub fn get(ui: &egui::Ui) -> Style {
     }
 }
 
-#[derive(Default, PartialEq, serde::Deserialize, serde::Serialize)]
-pub enum Theme {
-    Light,
-    Dark,
-    #[default]
-    System,
-}
-
-impl Theme {
-    fn is_dark_mode(&self) -> bool {
-        match self {
-            Theme::Light => false,
-            Theme::Dark => true,
-            Theme::System => matches!(dark_light::detect(), Ok(dark_light::Mode::Dark)),
+pub fn theme_switch(ui: &mut egui::Ui) -> egui::Response {
+    let mut theme = ui.ctx().options(|opt| opt.theme_preference);
+    ui.menu_button("◑ Theme", |ui| {
+        if ui
+            .selectable_value(&mut theme, ThemePreference::System, "System")
+            .clicked()
+        {
+            ui.ctx().set_theme(theme);
+            ui.close_menu();
         }
-    }
-}
-
-pub struct ThemeSwitch<'a> {
-    theme: &'a mut Theme,
-}
-
-impl<'a> ThemeSwitch<'a> {
-    pub fn new(theme: &'a mut Theme) -> Self {
-        Self { theme }
-    }
-}
-
-impl<'a> Widget for ThemeSwitch<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let response = ui
-            .menu_button("◑ Theme", |ui| {
-                if ui
-                    .selectable_value(self.theme, Theme::System, "System")
-                    .clicked()
-                {
-                    ui.close_menu();
-                }
-                if ui
-                    .selectable_value(self.theme, Theme::Light, "Light")
-                    .clicked()
-                {
-                    ui.close_menu();
-                }
-                if ui
-                    .selectable_value(self.theme, Theme::Dark, "Dark")
-                    .clicked()
-                {
-                    ui.close_menu();
-                }
-            })
-            .response;
-
-        let old_dark_mode = ui.style().visuals.dark_mode;
-        let dark_mode = self.theme.is_dark_mode();
-
-        if old_dark_mode != dark_mode {
-            ui.ctx().set_visuals(if dark_mode {
-                egui::Visuals::dark()
-            } else {
-                egui::Visuals::light()
-            });
+        if ui
+            .selectable_value(&mut theme, ThemePreference::Light, "Light")
+            .clicked()
+        {
+            ui.ctx().set_theme(theme);
+            ui.close_menu();
         }
-
-        response
-    }
+        if ui
+            .selectable_value(&mut theme, ThemePreference::Dark, "Dark")
+            .clicked()
+        {
+            ui.ctx().set_theme(theme);
+            ui.close_menu();
+        }
+    })
+    .response
 }

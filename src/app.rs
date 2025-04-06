@@ -17,7 +17,7 @@ use crate::{
     loading::Loading,
     notifications::Notifications,
     platform::inner as platform,
-    style::{Theme, ThemeSwitch},
+    style::theme_switch,
     transform::Transform,
     tx_cache::TxCache,
     workspaces::{Workspaces, WorkspacesHandle},
@@ -28,7 +28,6 @@ use crate::{
 pub struct AppStore {
     layout: Layout,
     transform: Transform,
-    theme: Theme,
     about: About,
 }
 
@@ -301,7 +300,7 @@ impl eframe::App for App {
                         self.store.layout.ui(ui);
                     });
 
-                    ui.add(ThemeSwitch::new(&mut self.store.theme));
+                    theme_switch(ui);
 
                     Loading::spinner(ui);
                 });
