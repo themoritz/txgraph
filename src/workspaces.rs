@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use egui::{mutex::Mutex, Button, Context, Id, Label, TextEdit, Ui};
 use egui_extras::{Column, TableBuilder};
 use serde::{Deserialize, Serialize};
@@ -227,7 +227,7 @@ impl Workspaces {
                                 Label::new(
                                     workspace
                                         .created_at
-                                        .with_timezone(&Local)
+                                        .with_timezone(&chrono::Local)
                                         .format("%Y-%m-%d %H:%M")
                                         .to_string(),
                                 )

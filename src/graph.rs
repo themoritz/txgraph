@@ -246,6 +246,7 @@ impl Graph {
                 tx_value: tx.amount(),
                 tx_timestamp: chrono::DateTime::from_timestamp(tx.timestamp, 0)
                     .unwrap()
+                    .with_timezone(&chrono::Local)
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
                 block_height: tx.block_height,
