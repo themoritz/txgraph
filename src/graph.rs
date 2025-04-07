@@ -86,26 +86,21 @@ impl DrawableNode {
         )
         .unwrap();
         for input in &self.inputs {
-            writeln!(
-                s,
-                "  Assets:Bitcoin:{:<72} {:>20.8} BTC",
-                input.address,
-                -(input.value as f64) / 100_000_000.0
-            )
-            .unwrap();
+            if let InputType::Txo { ref address, .. } = input.input_type {
+                writeln!(
+                    s,
+                    "  Assets:Bitcoin:{:<72} {:>20.8} BTC",
+                    address,
+                    -(input.value as f64) / 100_000_000.0
+                )
+                .unwrap();
+            }
         }
         for output in &self.outputs {
             let account = match &output.output_type {
                 OutputType::Fees => format!("Expenses:Bitcoin:Fees{:66}", " "),
-                OutputType::Spent {
-                    spending_txid: _,
-                    address,
-                    address_type: _,
-                } => format!("Assets:Bitcoin:{:<72}", address),
-                OutputType::Utxo {
-                    address,
-                    address_type: _,
-                } => format!("Assets:Bitcoin:{:<72}", address),
+                OutputType::Spent { address, .. } => format!("Assets:Bitcoin:{:<72}", address),
+                OutputType::Utxo { address, .. } => format!("Assets:Bitcoin:{:<72}", address),
             };
             if output.value > 0 {
                 writeln!(
@@ -134,10 +129,18 @@ pub struct DrawableInput {
     start: f32,
     end: f32,
     value: u64,
-    address: String,
-    address_type: AddressType,
-    funding_txid: Txid, // TODO: coinbase tx?
-    funding_vout: u32,
+    input_type: InputType,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum InputType {
+    Coinbase,
+    Txo {
+        address: String,
+        address_type: AddressType,
+        funding_txid: Txid,
+        funding_vout: u32,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -191,19 +194,30 @@ impl Graph {
     pub fn add_tx(&mut self, txid: Txid, tx: Transaction, pos: Pos2) {
         // Add node
 
-        let inputs = tx
+        let mut inputs: Vec<DrawableInput> = tx
             .inputs
             .iter()
             .map(|i| DrawableInput {
                 start: 0.0,
                 end: 0.0,
                 value: i.value,
-                address: i.address.clone(),
-                address_type: i.address_type,
-                funding_txid: i.txid,
-                funding_vout: i.vout,
+                input_type: InputType::Txo {
+                    address: i.address.clone(),
+                    address_type: i.address_type,
+                    funding_txid: i.txid,
+                    funding_vout: i.vout,
+                },
             })
             .collect();
+
+        if tx.is_coinbase() {
+            inputs.push(DrawableInput {
+                start: 0.0,
+                end: 0.0,
+                value: tx.amount(),
+                input_type: InputType::Coinbase,
+            });
+        }
 
         let mut outputs: Vec<DrawableOutput> = tx
             .outputs
@@ -274,7 +288,7 @@ impl Graph {
                         .inputs
                         .iter()
                         .enumerate()
-                        .find(|(_, inp)| inp.funding_txid == txid && inp.funding_vout as usize == o)
+                        .find(|(_, inp)| matches!(inp.input_type, InputType::Txo { funding_txid, funding_vout, .. } if funding_txid == txid && funding_vout as usize == o))
                         .unwrap()
                         .0;
                     self.add_edge(DrawableEdge {
@@ -371,17 +385,24 @@ impl Graph {
                     let mut job = LayoutJob::default();
                     sats_layout(&mut job, &Sats(input.value), &style);
                     newline(&mut job, &style.font_id());
-                    address_layout(&mut job, &input.address, input.address_type, &style);
+                    if let InputType::Txo {
+                        ref address,
+                        address_type,
+                        ..
+                    } = input.input_type
+                    {
+                        address_layout(&mut job, address, address_type, &style);
+                    }
                     ui.label(job);
                 });
             response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
             if response.clicked() {
-                ui.ctx().copy_text(
-                    self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos]
-                        .address
-                        .clone(),
-                );
+                if let InputType::Txo { address, .. } =
+                    &self.nodes.get(&edge.target).unwrap().inputs[edge.target_pos].input_type
+                {
+                    ui.ctx().copy_text(address.clone());
+                }
             }
         }
 
@@ -503,77 +524,109 @@ impl Graph {
 
             let id = ui.id().with("i").with(txid);
             for (i, input) in node.inputs.iter().enumerate() {
-                let coin = (input.funding_txid, input.funding_vout as usize);
-
                 let rect = *input_rects.get(&(*txid, i)).unwrap();
                 let screen_rect = transform.rect_to_screen(rect);
                 let response = ui
                     .interact(screen_rect, id.with(i), Sense::click())
-                    .on_hover_ui(|ui| {
-                        let label = match annotations.coin_label(coin) {
-                            Some(l) => format!(" [{}]", l),
-                            None => "".to_string(),
-                        };
-                        ui.label(
-                            RichText::new(format!("⏴Input{}", label))
-                                .heading()
-                                .monospace(),
-                        );
-                        let mut job = LayoutJob::default();
-                        sats_layout(&mut job, &Sats(input.value), &style);
-                        newline(&mut job, &style.font_id());
-                        address_layout(&mut job, &input.address, input.address_type, &style);
-                        newline(&mut job, &style.font_id());
-                        newline(&mut job, &FontId::monospace(5.0));
-                        txid_layout(&mut job, &input.funding_txid, &style);
-                        ui.label(job);
+                    .on_hover_ui(|ui| match &input.input_type {
+                        InputType::Txo {
+                            address,
+                            address_type,
+                            funding_txid,
+                            funding_vout,
+                        } => {
+                            let coin = (*funding_txid, *funding_vout as usize);
+                            let label = match annotations.coin_label(coin) {
+                                Some(l) => format!(" [{}]", l),
+                                None => "".to_string(),
+                            };
+                            ui.label(
+                                RichText::new(format!("⏴Input{}", label))
+                                    .heading()
+                                    .monospace(),
+                            );
+                            let mut job = LayoutJob::default();
+                            sats_layout(&mut job, &Sats(input.value), &style);
+                            newline(&mut job, &style.font_id());
+                            address_layout(&mut job, address, *address_type, &style);
+                            newline(&mut job, &style.font_id());
+                            newline(&mut job, &FontId::monospace(5.0));
+                            txid_layout(&mut job, funding_txid, &style);
+                            ui.label(job);
+                        }
+                        InputType::Coinbase => {
+                            ui.label(
+                                RichText::new("Coinbase (newly minted coins)")
+                                    .heading()
+                                    .monospace(),
+                            );
+                            ui.add(SatsDisplay::new(Sats(input.value), &style));
+                        }
                     });
-                response.context_menu(|ui| annotations.coin_menu(coin, ui));
 
-                if response.clicked() {
-                    if txids.contains(&input.funding_txid) {
-                        update_sender
-                            .send(Update::RemoveTx {
-                                txid: input.funding_txid,
-                            })
-                            .unwrap();
-                    } else {
-                        update_sender
-                            .send(Update::LoadOrSelectTx {
-                                txid: input.funding_txid,
-                                pos: Some(rect.center_top() - initial_dist),
-                            })
-                            .unwrap();
+                match &input.input_type {
+                    InputType::Txo {
+                        funding_txid,
+                        funding_vout,
+                        ..
+                    } => {
+                        let coin = (*funding_txid, *funding_vout as usize);
+                        response.context_menu(|ui| annotations.coin_menu(coin, ui));
+                        if response.clicked() {
+                            if txids.contains(&funding_txid) {
+                                update_sender
+                                    .send(Update::RemoveTx {
+                                        txid: *funding_txid,
+                                    })
+                                    .unwrap();
+                            } else {
+                                update_sender
+                                    .send(Update::LoadOrSelectTx {
+                                        txid: *funding_txid,
+                                        pos: Some(rect.center_top() - initial_dist),
+                                    })
+                                    .unwrap();
+                            }
+                        }
+
+                        painter.rect(
+                            screen_rect,
+                            CornerRadius::ZERO,
+                            annotations
+                                .coin_color(coin)
+                                .unwrap_or(style.io_bg)
+                                .gamma_multiply(0.4),
+                            Stroke::NONE,
+                            egui::StrokeKind::Middle,
+                        );
+
+                        if Loading::is_txid_loading(ui, &funding_txid) {
+                            rect_striped(
+                                ui,
+                                screen_rect,
+                                style.black_text_color().gamma_multiply(0.1),
+                            );
+                            ui.ctx().request_repaint();
+                        }
+
+                        painter.rect(
+                            screen_rect,
+                            CornerRadius::ZERO,
+                            Color32::TRANSPARENT,
+                            style.io_stroke(&response),
+                            egui::StrokeKind::Middle,
+                        );
+                    }
+                    InputType::Coinbase => {
+                        painter.rect(
+                            screen_rect,
+                            CornerRadius::ZERO,
+                            style.btc,
+                            Stroke::new(style.tx_stroke_width, style.io_highlight_color),
+                            egui::StrokeKind::Middle,
+                        );
                     }
                 }
-
-                painter.rect(
-                    screen_rect,
-                    CornerRadius::ZERO,
-                    annotations
-                        .coin_color(coin)
-                        .unwrap_or(style.io_bg)
-                        .gamma_multiply(0.4),
-                    Stroke::NONE,
-                    egui::StrokeKind::Middle,
-                );
-
-                if Loading::is_txid_loading(ui, &input.funding_txid) {
-                    rect_striped(
-                        ui,
-                        screen_rect,
-                        style.black_text_color().gamma_multiply(0.1),
-                    );
-                    ui.ctx().request_repaint();
-                }
-
-                painter.rect(
-                    screen_rect,
-                    CornerRadius::ZERO,
-                    Color32::TRANSPARENT,
-                    style.io_stroke(&response),
-                    egui::StrokeKind::Middle,
-                );
             }
 
             let id = ui.id().with("o").with(txid);
@@ -642,12 +695,7 @@ impl Graph {
                     }
                 }
 
-                if let OutputType::Spent {
-                    spending_txid,
-                    address: _,
-                    address_type: _,
-                } = &output.output_type
-                {
+                if let OutputType::Spent { spending_txid, .. } = &output.output_type {
                     if response.clicked() {
                         if txids.contains(spending_txid) {
                             update_sender
@@ -670,18 +718,11 @@ impl Graph {
                     screen_rect,
                     CornerRadius::ZERO,
                     match output.output_type {
-                        OutputType::Utxo {
-                            address: _,
-                            address_type: _,
-                        } => annotations
+                        OutputType::Utxo { .. } => annotations
                             .coin_color(coin)
                             .unwrap_or(style.utxo_fill())
                             .gamma_multiply(0.4),
-                        OutputType::Spent {
-                            spending_txid: _,
-                            address: _,
-                            address_type: _,
-                        } => annotations
+                        OutputType::Spent { .. } => annotations
                             .coin_color(coin)
                             .unwrap_or(style.io_bg)
                             .gamma_multiply(0.4),
@@ -707,11 +748,7 @@ impl Graph {
                     CornerRadius::ZERO,
                     Color32::TRANSPARENT,
                     match output.output_type {
-                        OutputType::Spent {
-                            spending_txid: _,
-                            address: _,
-                            address_type: _,
-                        } => style.io_stroke(&response),
+                        OutputType::Spent { .. } => style.io_stroke(&response),
                         _ => style.tx_stroke(),
                     },
                     egui::StrokeKind::Middle,
