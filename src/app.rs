@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, Vec2};
+use egui::{Context, CursorIcon, Frame, Key, Pos2, Rect, RichText, Sense, UiBuilder, Vec2};
 
 use crate::{
     annotations::Annotations,
@@ -316,23 +316,23 @@ impl eframe::App for App {
                 Sense::click_and_drag().union(Sense::hover()),
             );
 
-            self.framerate.ui(&mut ui.child_ui(
-                Rect::from_min_max(
-                    response.rect.right_top() - Vec2::new(-10., -5.),
-                    response.rect.right_top() + Vec2::new(-5., 10.),
-                ),
-                egui::Layout::right_to_left(egui::Align::Min),
-                None,
+            self.framerate.ui(&mut ui.new_child(
+                UiBuilder::new()
+                    .max_rect(Rect::from_min_max(
+                        response.rect.right_top() - Vec2::new(-10., -5.),
+                        response.rect.right_top() + Vec2::new(-5., 10.),
+                    ))
+                    .layout(egui::Layout::right_to_left(egui::Align::Min)),
             ));
 
             #[cfg(testnet)]
-            ui.child_ui(
-                Rect::from_min_max(
-                    response.rect.left_bottom() + Vec2::new(5., -20.),
-                    response.rect.left_bottom() + Vec2::new(30., -25.),
-                ),
-                egui::Layout::left_to_right(egui::Align::Max),
-                None,
+            ui.new_child(
+                UiBuilder::new()
+                    .max_rect(Rect::from_min_max(
+                        response.rect.left_bottom() + Vec2::new(5., -20.),
+                        response.rect.left_bottom() + Vec2::new(30., -25.),
+                    ))
+                    .layout(egui::Layout::left_to_right(egui::Align::Max)),
             )
             .colored_label(egui::Color32::LIGHT_RED, "TESTNET");
 
