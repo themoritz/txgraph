@@ -105,8 +105,12 @@ impl Toast {
                 })
                 .collect();
 
-            ui.painter()
-                .circle(rect.center(), radius, Color32::TRANSPARENT, bg_stroke);
+            ui.painter().circle(
+                rect.center(),
+                radius - stroke_width / 2.0,
+                Color32::TRANSPARENT,
+                bg_stroke,
+            );
             ui.painter().add(Shape::line(points, fg_stroke));
 
             // Close cross
